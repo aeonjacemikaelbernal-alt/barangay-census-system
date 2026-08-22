@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
-type ResidentRole = "Family Head" | "Spouse" | "Child";
 
 type Resident = {
   firstName: string;
@@ -51,6 +50,10 @@ type Resident = {
   seniorCitizen: string;
 
   hasOwnFamily: string;
+
+  familyMemberName: string;
+familyRelationship: string;
+familyMemberStatus: string;
 };
 
 
@@ -108,6 +111,10 @@ const createResident = (): Resident => ({
   seniorCitizen: "",
 
   hasOwnFamily: "",
+
+  familyMemberName: "",
+familyRelationship: "",
+familyMemberStatus: "",
 });
 function calculateAge(birthDate: string): number | "" {
   if (!birthDate) return "";
@@ -189,6 +196,43 @@ type HouseholdPrototypeProps = {
   onSubmitCensus: (data: any) => void;
 };
 
+function splitFullName(fullName: string) {
+  const parts = fullName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return {
+      firstName: "",
+      middleName: "",
+      lastName: "",
+    };
+  }
+
+  if (parts.length === 1) {
+    return {
+      firstName: parts[0],
+      middleName: "",
+      lastName: "",
+    };
+  }
+
+  if (parts.length === 2) {
+    return {
+      firstName: parts[0],
+      middleName: "",
+      lastName: parts[1],
+    };
+  }
+
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(" "),
+    lastName: parts[parts.length - 1],
+  };
+}
+
 function HouseholdPrototype({
   onSubmitCensus,
 }: HouseholdPrototypeProps) {
@@ -208,11 +252,142 @@ function HouseholdPrototype({
   const [purok, setPurok] =
     useState("");
 
+  const [region, setRegion] = useState("");
+const [province, setProvince] = useState("");
+const [municipality, setMunicipality] = useState("");
+const [barangay, setBarangay] = useState("");
+
+const [regions, setRegions] = useState<any[]>([]);
+const [provinces, setProvinces] = useState<any[]>([]);
+const [municipalities, setMunicipalities] = useState<any[]>([]);
+const [barangays, setBarangays] = useState<any[]>([]);
+
+useEffect(() => {
+  fetch("https://psgc.gitlab.io/api/regions/")
+    .then((response) => response.json())
+    .then((data) => setRegions(data))
+    .catch((error) =>
+      console.error("Error loading regions:", error)
+    );
+}, []);
+
+useEffect(() => {
+  if (!region) {
+    setProvinces([]);
+    setProvince("");
+    setMunicipalities([]);
+    setMunicipality("");
+    setBarangays([]);
+    setBarangay("");
+    return;
+  }
+
+  fetch(
+    `https://psgc.gitlab.io/api/regions/${region}/provinces/`
+  )
+    .then((response) => response.json())
+    .then((data) => setProvinces(data))
+    .catch((error) =>
+      console.error("Error loading provinces:", error)
+    );
+
+  setProvince("");
+  setMunicipality("");
+  setBarangay("");
+  setMunicipalities([]);
+  setBarangays([]);
+}, [region]);
+
+useEffect(() => {
+  if (!province) {
+    setMunicipalities([]);
+    setMunicipality("");
+    setBarangays([]);
+    setBarangay("");
+    return;
+  }
+
+  fetch(
+    `https://psgc.gitlab.io/api/provinces/${province}/municipalities/`
+  )
+    .then((response) => response.json())
+    .then((data) => setMunicipalities(data))
+    .catch((error) =>
+      console.error("Error loading municipalities:", error)
+    );
+
+  setMunicipality("");
+  setBarangay("");
+  setBarangays([]);
+}, [province]);
+
+useEffect(() => {
+  if (!municipality) {
+    setBarangays([]);
+    setBarangay("");
+    return;
+  }
+
+  fetch(
+    `https://psgc.gitlab.io/api/municipalities/${municipality}/barangays/`
+  )
+    .then((response) => response.json())
+    .then((data) => setBarangays(data))
+    .catch((error) =>
+      console.error("Error loading barangays:", error)
+    );
+
+  setBarangay("");
+}, [municipality]);
+
   const [yearsInBarangay, setYearsInBarangay] =
     useState("");
 
   const [previousAddress, setPreviousAddress] =
     useState("");
+
+  const [currentAddress, setCurrentAddress] =
+  useState("");
+
+  useEffect(() => {
+  const selectedRegion =
+    regions.find((item) => item.code === region)?.name || "";
+
+  const selectedProvince =
+    provinces.find((item) => item.code === province)?.name || "";
+
+  const selectedMunicipality =
+    municipalities.find(
+      (item) => item.code === municipality
+    )?.name || "";
+
+  const selectedBarangay =
+    barangays.find(
+      (item) => item.code === barangay
+    )?.name || "";
+
+  const addressParts = [
+    selectedRegion,
+    selectedProvince,
+    selectedMunicipality,
+    selectedBarangay,
+    purok,
+    street,
+  ].filter(Boolean);
+
+  setCurrentAddress(addressParts.join(", "));
+}, [
+  region,
+  province,
+  municipality,
+  barangay,
+  purok,
+  street,
+  regions,
+  provinces,
+  municipalities,
+  barangays,
+]);
 
     const [validationError, setValidationError] =
   useState("");
@@ -329,20 +504,20 @@ function HouseholdPrototype({
      Member 2 = Spouse
      Member 3+ = Child
   ===================================================== */
+const getRelationship = (
+  member: Resident,
+  memberIndex: number
+): string => {
+  if (member.familyRelationship) {
+    return member.familyRelationship;
+  }
 
-  const getRelationship = (
-    memberIndex: number
-  ): ResidentRole => {
-    if (memberIndex === 0) {
-      return "Family Head";
-    }
+  if (memberIndex === 0) {
+    return "Family Head";
+  }
 
-    if (memberIndex === 1) {
-      return "Spouse";
-    }
-
-    return "Child";
-  };
+  return "";
+};
 
   /* =====================================================
      CREATE FAMILY FROM CHILD
@@ -395,10 +570,10 @@ function HouseholdPrototype({
        */
 
       const familyHead: Resident = {
-        ...sourceResident,
-        hasOwnFamily: "",
-      };
-
+  ...sourceResident,
+  hasOwnFamily: "",
+  familyRelationship: "Family Head",
+};
       const newFamily: Family = {
         id: newFamilyId,
 
@@ -627,6 +802,117 @@ function HouseholdPrototype({
 />
 
             </div>
+
+            {/* REGION */}
+<div className="form-group">
+  <label>
+    Region *
+  </label>
+
+  <select
+    value={region}
+    onChange={(event) =>
+      setRegion(event.target.value)
+    }
+  >
+    <option value="">
+      SELECT REGION
+    </option>
+
+    {regions.map((item) => (
+      <option
+        key={item.code}
+        value={item.code}
+      >
+        {item.name}
+      </option>
+    ))}
+  </select>
+</div>
+
+{/* PROVINCE */}
+<div className="form-group">
+  <label>
+    Province *
+  </label>
+
+  <select
+    value={province}
+    onChange={(event) =>
+      setProvince(event.target.value)
+    }
+    disabled={!region}
+  >
+    <option value="">
+      SELECT PROVINCE
+    </option>
+
+    {provinces.map((item) => (
+      <option
+        key={item.code}
+        value={item.code}
+      >
+        {item.name}
+      </option>
+    ))}
+  </select>
+</div>
+
+{/* MUNICIPALITY */}
+<div className="form-group">
+  <label>
+    Municipality *
+  </label>
+
+  <select
+    value={municipality}
+    onChange={(event) =>
+      setMunicipality(event.target.value)
+    }
+    disabled={!province}
+  >
+    <option value="">
+      SELECT MUNICIPALITY
+    </option>
+
+    {municipalities.map((item) => (
+      <option
+        key={item.code}
+        value={item.code}
+      >
+        {item.name}
+      </option>
+    ))}
+  </select>
+</div>
+
+{/* BARANGAY */}
+<div className="form-group">
+  <label>
+    Barangay *
+  </label>
+
+  <select
+    value={barangay}
+    onChange={(event) =>
+      setBarangay(event.target.value)
+    }
+    disabled={!municipality}
+  >
+    <option value="">
+      SELECT BARANGAY
+    </option>
+
+    {barangays.map((item) => (
+      <option
+        key={item.code}
+        value={item.code}
+      >
+        {item.name}
+      </option>
+    ))}
+  </select>
+</div>
         
 
             {/* PUROK */}
@@ -719,7 +1005,7 @@ setValidationFields((prev) => ({
 <div className="form-group">
 
   <label>
-    Street
+    Street Name
   </label>
 
   <input
@@ -758,6 +1044,21 @@ setValidationFields((prev) => ({
               />
 
             </div>
+
+            {/* CURRENT ADDRESS */}
+
+<div className="form-group full-width">
+  <label>
+    Current Address
+  </label>
+
+  <input
+    type="text"
+    value={currentAddress}
+    readOnly
+    placeholder="AUTOMATIC CURRENT ADDRESS"
+  />
+</div>
 
             {/* PREVIOUS ADDRESS */}
 
@@ -917,10 +1218,9 @@ setValidationFields((prev) => ({
               ================================================= */}
 
               <div className="subsection">
-
-                <h4>
-                  Family Members
-                </h4>
+<h4>
+  Name of Family Members
+</h4>
 
                 {family.members.map(
                   (
@@ -929,16 +1229,192 @@ setValidationFields((prev) => ({
                   ) => {
 
                     const role =
-                      getRelationship(
-                        memberIndex
-                      );
+  
+                    getRelationship(
+                      member,
+                      memberIndex
+                    );
 
                     return (
+                      <>
 
-                      <div
-                        className="resident-card"
-                        key={memberIndex}
-                      >
+                        {/* FAMILY MEMBER BASIC INFORMATION */}
+
+<div className="subsection">
+  <div className="subsection-label">
+    Family Member Information
+  </div>
+
+  <div className="form-grid">
+
+    {/* FULL NAME */}
+
+    <div className="form-group">
+      <label>
+        Full Name *
+      </label>
+
+      <input
+        type="text"
+        value={member.familyMemberName}
+        onChange={(event) => {
+  const fullName = event.target.value;
+
+  const parsedName = splitFullName(fullName);
+
+  updateMember(
+    familyIndex,
+    memberIndex,
+    "familyMemberName",
+    fullName
+  );
+
+  updateMember(
+    familyIndex,
+    memberIndex,
+    "firstName",
+    parsedName.firstName
+  );
+
+  updateMember(
+    familyIndex,
+    memberIndex,
+    "middleName",
+    parsedName.middleName
+  );
+
+  updateMember(
+    familyIndex,
+    memberIndex,
+    "lastName",
+    parsedName.lastName
+  );
+}}
+        placeholder="Full name of family member"
+      />
+    </div>
+
+    {/* RELATIONSHIP */}
+
+    <div className="form-group">
+      <label>
+        Relationship to Family Head *
+      </label>
+
+      <select
+        value={member.familyRelationship}
+        onChange={(event) =>
+          updateMember(
+            familyIndex,
+            memberIndex,
+            "familyRelationship",
+            event.target.value
+          )
+        }
+      >
+        <option value="">
+          Select relationship
+        </option>
+
+        {memberIndex === 0 && (
+          <option value="Family Head">
+            Family Head
+          </option>
+        )}
+
+        {memberIndex !== 0 && (
+          <>
+            <option value="Spouse">
+              Spouse
+            </option>
+
+            <option value="Child">
+              Child
+            </option>
+
+            <option value="Grandchild">
+              Grandchild
+            </option>
+
+            <option value="Grandparent">
+              Grandparent
+            </option>
+
+            <option value="Parent">
+              Parent
+            </option>
+
+            <option value="Sibling">
+              Sibling
+            </option>
+
+            <option value="Niece">
+              Niece
+            </option>
+
+            <option value="Nephew">
+              Nephew
+            </option>
+
+            <option value="Cousin">
+              Cousin
+            </option>
+
+            <option value="Relative">
+              Relative
+            </option>
+
+            <option value="Adopted Child">
+              Adopted Child
+            </option>
+
+            <option value="Other">
+              Other
+            </option>
+          </>
+        )}
+      </select>
+    </div>
+
+    {/* STATUS */}
+
+    <div className="form-group">
+      <label>
+        Member Status *
+      </label>
+
+      <select
+        value={member.familyMemberStatus}
+        onChange={(event) =>
+          updateMember(
+            familyIndex,
+            memberIndex,
+            "familyMemberStatus",
+            event.target.value
+          )
+        }
+      >
+        <option value="">
+          Select status
+        </option>
+
+        <option value="Alive">
+          Alive
+        </option>
+
+        <option value="Deceased">
+          Deceased
+        </option>
+      </select>
+    </div>
+
+  </div>
+</div>
+
+<div
+  className="resident-card"
+  key={memberIndex}
+>
 
                         {/* RESIDENT HEADER */}
 
@@ -987,17 +1463,10 @@ setValidationFields((prev) => ({
                               type="text"
                               value={
                                 member.firstName
-                              }
-                              onChange={(event) =>
-                                updateMember(
-                                  familyIndex,
-                                  memberIndex,
-                                  "firstName",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="First name"
-                            />
+                              }                       
+                                readOnly
+                                placeholder="First name"
+                                />
 
                           </div>
 
@@ -1010,20 +1479,11 @@ setValidationFields((prev) => ({
                             </label>
 
                             <input
-                              type="text"
-                              value={
-                                member.middleName
-                              }
-                              onChange={(event) =>
-                                updateMember(
-                                  familyIndex,
-                                  memberIndex,
-                                  "middleName",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Middle name"
-                            />
+  type="text"
+  value={member.middleName}
+  readOnly
+  placeholder="Middle name"
+/>
 
                           </div>
 
@@ -1040,14 +1500,7 @@ setValidationFields((prev) => ({
                               value={
                                 member.lastName
                               }
-                              onChange={(event) =>
-                                updateMember(
-                                  familyIndex,
-                                  memberIndex,
-                                  "lastName",
-                                  event.target.value
-                                )
-                              }
+                              readOnly
                               placeholder="Last name"
                             />
 
@@ -1678,22 +2131,22 @@ setValidationFields((prev) => ({
                             CHILD OWN FAMILY
                         ================================================= */}
 
-                        {role === "Child" && (
+                        {memberIndex > 0 && (
 
                           <div className="child-family-question">
 
-                            <div className="subsection-label">
-                              Child Family Information
-                            </div>
+                          <div className="subsection-label">
+  Own Family Information
+</div>
 
                             <div className="form-grid">
 
                               <div className="form-group">
 
                                 <label>
-                                  Does this child have
-                                  their own family?
-                                </label>
+  Does this family member have
+  their own family?
+</label>
 
                                 <select
                                   value={
@@ -1729,6 +2182,7 @@ setValidationFields((prev) => ({
                           </div>
 
                         )}
+                          
 
                         {/* =================================================
                             CONTACT INFORMATION
@@ -2957,18 +3411,19 @@ setValidationFields((prev) => ({
     }
     readOnly
     placeholder="AUTOMATICALLY DETERMINED FROM AGE"
+    
   />
+  </div>
 
 </div>
 
 </div>
 
-</div>
+</>         
                     );
-                  })}
-
-              </div>
-
+                  }
+                )}  
+                </div> 
             </section>
           ))}
                 
