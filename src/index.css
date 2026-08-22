@@ -185,3 +185,48 @@
   }
 
 }
+/* =====================================================
+   GLOBAL BARANGAY WATERMARK
+===================================================== */
+
+#root {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+#root::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 255px;
+  right: 0;
+  bottom: 0;
+
+  background-image: url("/barangay-watermark.png");
+  background-size: 100% auto;
+  background-position: center center;
+  background-repeat: no-repeat;
+
+  opacity: 0.06;
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+#root > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 1050px) {
+  #root::before {
+    left: 220px;
+  }
+}
+
+@media (max-width: 800px) {
+  #root::before {
+    left: 0;
+  }
+}

@@ -1,15 +1,15 @@
 import "./dashboard.css";
 
+ import type { Page } from "./Sidebar";
+
 type MainDashboardProps = {
   onNewCensus: () => void;
-  onOpenResidents: () => void;
-  onOpenFamilies: () => void;
+  onNavigate: (page: Page) => void;
   censusRecords: any[];
 };
 function MainDashboard({
   onNewCensus,
-  onOpenResidents,
- onOpenFamilies,
+  onNavigate,
   censusRecords,
 }: MainDashboardProps) {
 
@@ -104,10 +104,8 @@ const totalChildren = allFamilies.reduce(
           </button>
 <button
   className="nav-item"
-onClick={() => {
-  console.log("RESIDENTS BUTTON CLICKED");
-  onOpenResidents();
-}}>
+ onClick={() => onNavigate("residents")}
+>
   <span>👥</span>
   Residents
 </button>
@@ -120,10 +118,7 @@ onClick={() => {
           <button
   type="button"
   className="nav-item"
-  onClick={() => {
-    console.log("FAMILIES BUTTON CLICKED");
-    onOpenFamilies();
-  }}
+  onClick={() => onNavigate("families")}
 >
   <span>👨‍👩‍👧</span>
   Families
@@ -132,31 +127,54 @@ onClick={() => {
           <div className="nav-label">
             DATA CATEGORIES
           </div>
+<button
+  type="button"
+  className="nav-item"
+  onClick={() => onNavigate("education")}
+>
+  <span>🎓</span>
+  Education
+</button>
 
-          <button className="nav-item">
-            <span>🎓</span>
-            Education
-          </button>
+          <button
+  type="button"
+  className="nav-item"
+  onClick={() => {
+    console.log("OCCUPATION BUTTON CLICKED");
+    console.log("NAVIGATING TO OCCUPATION");
+    onNavigate("occupation");
+  }}
+>
+  <span>💼</span>
+  Occupation
+</button>
 
-          <button className="nav-item">
-            <span>💼</span>
-            Occupation
-          </button>
+          <button
+  type="button"
+  className="nav-item"
+  onClick={() => onNavigate("skills")}
+>
+  <span>🛠</span>
+  Skills
+</button>
 
-          <button className="nav-item">
-            <span>🛠</span>
-            Skills
-          </button>
+          <button
+  type="button"
+  className="nav-item"
+  onClick={() => onNavigate("income")}
+>
+  <span>💰</span>
+  Income
+</button>
 
-          <button className="nav-item">
-            <span>💰</span>
-            Income
-          </button>
-
-          <button className="nav-item">
-            <span>🗳</span>
-            Voters
-          </button>
+          <button
+  type="button"
+  className="nav-item"
+  onClick={() => onNavigate("voters")}
+>
+  <span>🗳</span>
+  Voters
+</button>
 
         </nav>
 
@@ -391,52 +409,59 @@ onClick={() => {
 
           <div className="category-grid">
 
-            <button className="category-card">
+           <button
+  type="button"
+  className="category-card"
+  onClick={() => onNavigate("residents")}
+>
+  <div className="category-icon">
+    👥
+  </div>
 
-              <div className="category-icon">
-                👥
-              </div>
+  <div>
+    <h3>
+      Residents
+    </h3>
 
-              <div>
-                <h3>
-                  Residents
-                </h3>
+    <p>
+      View all registered residents
+    </p>
+  </div>
 
-                <p>
-                  View all registered residents
-                </p>
-              </div>
+  <span className="category-arrow">
+    →
+  </span>
+</button>
 
-              <span className="category-arrow">
-                →
-              </span>
+           <button
+  type="button"
+  className="category-card"
+  onClick={() => onNavigate("households")}
+>
+  <div className="category-icon">
+    👥
+  </div>
 
-            </button>
+  <div>
+    <h3>
+      Households
+    </h3>
 
-            <button className="category-card">
+    <p>
+      View all registered households
+    </p>
+  </div>
 
-              <div className="category-icon">
-                🏠
-              </div>
+  <span className="category-arrow">
+    →
+  </span>
+</button>
 
-              <div>
-                <h3>
-                  Households
-                </h3>
-
-                <p>
-                  View household information
-                </p>
-              </div>
-
-              <span className="category-arrow">
-                →
-              </span>
-
-            </button>
-
-            <button className="category-card">
-
+            <button 
+            type="button"
+  className="category-card"
+  onClick={() => onNavigate("families")}
+>
               <div className="category-icon">
                 👨‍👩‍👧
               </div>
@@ -457,29 +482,37 @@ onClick={() => {
 
             </button>
 
-            <button className="category-card">
+            <button
+  type="button"
+  className="category-card"
+  onClick={() => onNavigate("education")}
+>
 
-              <div className="category-icon">
-                🎓
-              </div>
+  <div className="category-icon">
+    🎓
+  </div>
 
-              <div>
-                <h3>
-                  Education
-                </h3>
+  <div>
+    <h3>
+      Education
+    </h3>
 
-                <p>
-                  Educational attainment data
-                </p>
-              </div>
+    <p>
+      Educational attainment data
+    </p>
+  </div>
 
-              <span className="category-arrow">
-                →
-              </span>
+  <span className="category-arrow">
+    →
+  </span>
 
-            </button>
+</button>
 
-            <button className="category-card">
+            <button 
+            type="button"
+  className="category-card"
+  onClick={() => onNavigate("occupation")}
+>
 
               <div className="category-icon">
                 💼
@@ -501,8 +534,11 @@ onClick={() => {
 
             </button>
 
-            <button className="category-card">
-
+            <button 
+ type="button"
+  className="category-card"
+  onClick={() => onNavigate("skills")}
+>
               <div className="category-icon">
                 🛠
               </div>
@@ -523,8 +559,11 @@ onClick={() => {
 
             </button>
 
-            <button className="category-card">
-
+            <button 
+ type="button"
+  className="category-card"
+  onClick={() => onNavigate("income")}
+>
               <div className="category-icon">
                 💰
               </div>
@@ -545,8 +584,11 @@ onClick={() => {
 
             </button>
 
-            <button className="category-card">
-
+            <button 
+ type="button"
+  className="category-card"
+  onClick={() => onNavigate("voters")}
+>
               <div className="category-icon">
                 🗳
               </div>

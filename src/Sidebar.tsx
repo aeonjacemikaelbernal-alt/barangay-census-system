@@ -8,7 +8,10 @@ export type Page =
   | "occupation"
   | "skills"
   | "income"
-  | "voters";
+  | "voters"
+  | "education"
+
+  ;
 
 type SidebarProps = {
   page: Page;

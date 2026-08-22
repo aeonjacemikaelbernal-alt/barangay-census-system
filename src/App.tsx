@@ -5,6 +5,11 @@ import HouseholdPrototype from "./HouseholdPrototype";
 import Residents from "./Residents";
 import Households from "./Households";
 import Families from "./Families";
+import Education from "./Education";
+import Occupation from "./Occupation";
+import Skills from "./Skills";
+import Income from "./Income";
+import Voters from "./Voters";
 import Sidebar from "./Sidebar";
 import type { Page } from "./Sidebar";import {
   getCensusRecords,
@@ -34,7 +39,6 @@ const handleCensusSubmit = async (data: any) => {
 
   try {
     const savedRecord = await saveCensusRecord(data);
-
     if (!savedRecord) {
       console.error("CENSUS WAS NOT SAVED TO SUPABASE.");
       return;
@@ -79,105 +83,19 @@ if (page === "residents") {
     </div>
   );
 }
-
 if (page === "families") {
   return (
     <div className="dashboard-page">
 
-      <aside className="dashboard-sidebar">
-
-        <div className="sidebar-brand">
-          <div className="sidebar-logo">
-            LOGO
-          </div>
-
-          <div>
-            <h2>Barangay</h2>
-            <span>Digital Census</span>
-          </div>
-        </div>
-
-        <nav className="dashboard-nav">
-
-          <button
-            className="nav-item"
-            onClick={() => setPage("dashboard")}
-          >
-            <span>⌂</span>
-            Dashboard
-          </button>
-
-          <button
-            className="nav-item"
-            onClick={() => setPage("residents")}
-          >
-            <span>👥</span>
-            Residents
-          </button>
-
-          <button className="nav-item">
-            <span>🏠</span>
-            Households
-          </button>
-
-          <button
-            className="nav-item active"
-            onClick={() => setPage("families")}
-          >
-            <span>👨‍👩‍👧</span>
-            Families
-          </button>
-
-          <div className="nav-label">
-            DATA CATEGORIES
-          </div>
-
-          <button className="nav-item">
-            <span>🎓</span>
-            Education
-          </button>
-
-          <button className="nav-item">
-            <span>💼</span>
-            Occupation
-          </button>
-
-          <button className="nav-item">
-            <span>🛠</span>
-            Skills
-          </button>
-
-          <button className="nav-item">
-            <span>💰</span>
-            Income
-          </button>
-
-          <button className="nav-item">
-            <span>🗳</span>
-            Voters
-          </button>
-
-        </nav>
-
-        <div className="sidebar-bottom">
-
-          <button
-            className="new-census-sidebar"
-            onClick={() => setPage("census")}
-          >
-            <span>＋</span>
-            New Census
-          </button>
-
-        </div>
-
-      </aside>
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
 
       <Families
         censusRecords={censusRecords}
-        onBackToDashboard={() =>
-          setPage("dashboard")
-        }
+        onBackToDashboard={() => setPage("dashboard")}
       />
 
     </div>
@@ -199,6 +117,93 @@ if (page === "households") {
         onBackToDashboard={() => setPage("dashboard")}
       />
 
+    </div>
+  );
+}
+
+if (page === "education") {
+  return (
+    <div className="dashboard-page">
+
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <Education
+        censusRecords={censusRecords}
+        onBackToDashboard={() => setPage("dashboard")}
+      />
+
+    </div>
+  );
+}
+
+if (page === "occupation") {
+  return (
+    <div className="dashboard-page">
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <Occupation
+        censusRecords={censusRecords}
+        onBackToDashboard={() => setPage("dashboard")}
+      />
+    </div>
+  );
+}
+
+if (page === "skills") {
+  return (
+    <div className="dashboard-page">
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <Skills
+        censusRecords={censusRecords}
+        onBackToDashboard={() => setPage("dashboard")}
+      />
+    </div>
+  );
+}
+
+if (page === "income") {
+  return (
+    <div className="dashboard-page">
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <Income
+        censusRecords={censusRecords}
+        onBackToDashboard={() => setPage("dashboard")}
+      />
+    </div>
+  );
+}
+
+if (page === "voters") {
+  return (
+    <div className="dashboard-page">
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <Voters
+        censusRecords={censusRecords}
+        onBackToDashboard={() => setPage("dashboard")}
+      />
     </div>
   );
 }
@@ -243,13 +248,12 @@ console.log(
   "APP FIRST RECORD FAMILIES:",
   censusRecords[0]?.families
 );
-  return (
+ return (
   <MainDashboard
     onNewCensus={() => setPage("census")}
-    onOpenResidents={() => setPage("residents")}
-    onOpenFamilies={() => {
-      console.log("OPENING FAMILIES PAGE");
-      setPage("families");
+    onNavigate={(nextPage) => {
+      console.log("APP NAVIGATION:", nextPage);
+      setPage(nextPage);
     }}
     censusRecords={censusRecords}
   />
