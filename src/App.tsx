@@ -113,9 +113,13 @@ const handleCensusSubmit = async (data: any) => {
     );
   }
 
-  if (!session) {
-    return <Login />;
-  }
+ if (!session) {
+  return (
+   <Login
+  onLoginSuccess={() => setPage("dashboard")}
+/>
+  );
+}
 
 if (page === "residents") {
   return (
