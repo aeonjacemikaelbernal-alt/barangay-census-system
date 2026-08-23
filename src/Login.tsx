@@ -103,13 +103,16 @@ const [fullName, setFullName] = useState("");
 <form onSubmit={handleLogin}>
 
             <div className="auth-input">
-              <input
+            
+<input
   type="email"
+  name="login-email"
+  autoComplete="username"
   placeholder="Email"
- value={loginEmail}
-onChange={(event) =>
-  setLoginEmail(event.target.value)
-}
+  value={loginEmail}
+  onChange={(event) =>
+    setLoginEmail(event.target.value)
+  }
   required
 />
             </div>
@@ -117,11 +120,13 @@ onChange={(event) =>
             <div className="auth-input">
               <input
   type="password"
+  name="login-password"
+  autoComplete="current-password"
   placeholder="Password"
- value={loginPassword}
-onChange={(event) =>
-  setLoginPassword(event.target.value)
-}
+  value={loginPassword}
+  onChange={(event) =>
+    setLoginPassword(event.target.value)
+  }
   required
 />
             </div>
@@ -181,6 +186,8 @@ onChange={(event) =>
             <div className="auth-input">
               <input
   type="text"
+  name="full-name"
+  autoComplete="name"
   placeholder="Full Name"
   value={fullName}
   onChange={(event) =>
@@ -193,11 +200,13 @@ onChange={(event) =>
             <div className="auth-input">
               <input
   type="email"
+  name="register-email"
+  autoComplete="email"
   placeholder="Email"
- value={registerEmail}
-onChange={(event) =>
-  setRegisterEmail(event.target.value)
-}
+  value={registerEmail}
+  onChange={(event) =>
+    setRegisterEmail(event.target.value)
+  }
   required
 />
             </div>
@@ -205,11 +214,13 @@ onChange={(event) =>
             <div className="auth-input">
               <input
   type="password"
+  name="register-password"
+  autoComplete="new-password"
   placeholder="Password"
- value={registerPassword}
-onChange={(event) =>
-  setRegisterPassword(event.target.value)
-}
+  value={registerPassword}
+  onChange={(event) =>
+    setRegisterPassword(event.target.value)
+  }
   required
 />
             </div>
