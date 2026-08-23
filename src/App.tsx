@@ -1,5 +1,6 @@
-
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+
 import MainDashboard from "./MainDashboard";
 import HouseholdPrototype from "./HouseholdPrototype";
 import Residents from "./Residents";
@@ -11,13 +12,46 @@ import Skills from "./Skills";
 import Income from "./Income";
 import Voters from "./Voters";
 import Sidebar from "./Sidebar";
+import Login from "./Login";
+
 import type { Page } from "./Sidebar";import {
   getCensusRecords,
   saveCensusRecord,
 } from "./censusStorage";
 
+import { supabase } from "./supabaseClient";
+
 function App() {
   const [page, setPage] = useState<Page>("dashboard");
+
+    const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const getSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      setSession(session);
+      setAuthLoading(false);
+    };
+
+    getSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setAuthLoading(false);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Census records loaded from Supabase
 const [censusRecords, setCensusRecords] = useState<any[]>([]);
@@ -63,6 +97,25 @@ const handleCensusSubmit = async (data: any) => {
     );
   }
 };
+
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        Loading...
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
 
 if (page === "residents") {
   return (
