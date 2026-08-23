@@ -1,3 +1,5 @@
+import { WalletCards, ArrowLeft } from "lucide-react";
+
 type IncomeProps = {
   censusRecords: any[];
   onBackToDashboard: () => void;
@@ -59,19 +61,23 @@ function Income({
         </div>
 
         <button
-          type="button"
-          onClick={onBackToDashboard}
-          style={{
-            border: "1px solid #dfe4eb",
-            background: "white",
-            borderRadius: "10px",
-            padding: "11px 18px",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          ← Back to Dashboard
-        </button>
+  type="button"
+  onClick={onBackToDashboard}
+  style={{
+    border: "1px solid #dfe4eb",
+    background: "white",
+    borderRadius: "10px",
+    padding: "11px 18px",
+    cursor: "pointer",
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  }}
+>
+  <ArrowLeft size={16} strokeWidth={1.8} />
+  Back to Dashboard
+</button>
       </div>
 
       <div
@@ -82,7 +88,22 @@ function Income({
           padding: "30px",
         }}
       >
-        <h2>Income Records</h2>
+        <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+  }}
+>
+  <WalletCards
+    size={20}
+    strokeWidth={1.8}
+  />
+
+  <h2 style={{ margin: 0 }}>
+    Income Records
+  </h2>
+</div>
 
         <p>
           Total census records:{" "}

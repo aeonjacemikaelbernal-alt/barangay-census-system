@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import { House } from "lucide-react";
 
 type Resident = {
   firstName: string;
@@ -189,7 +190,7 @@ const createFamily = (
   id,
   familyName: "",
   linkedResidentKey,
-  members: [createResident(), createResident()],
+ members: [createResident()],
 });
 
 type HouseholdPrototypeProps = {
@@ -403,6 +404,38 @@ useEffect(() => {
     createFamily(1),
   ]);
 
+  const [activeFamilyIndex, setActiveFamilyIndex] = useState(0);
+
+  const [activeMemberIndex, setActiveMemberIndex] = useState(0);
+
+ const addFamilyMember = (familyIndex: number) => {
+  setFamilies((current) => {
+    const updated = [...current];
+
+    const family = updated[familyIndex];
+
+    if (!family) {
+      return current;
+    }
+
+    updated[familyIndex] = {
+      ...family,
+      members: [
+        ...family.members,
+        createResident(),
+      ],
+    };
+
+    return updated;
+  });
+
+  setActiveMemberIndex(
+  (current) => current + 1
+);
+
+};
+
+
   /* =====================================================
      FAMILY MEMBER COUNT
      
@@ -410,41 +443,6 @@ useEffect(() => {
      There is NO plus/minus button.
      The user types the number directly.
   ===================================================== */
-
-  const changeMemberCount = (
-    familyIndex: number,
-    value: number
-  ) => {
-    if (!Number.isFinite(value)) {
-      return;
-    }
-
-    const count = Math.max(
-      2,
-      Math.min(30, Math.floor(value))
-    );
-
-    setFamilies((current) => {
-      const updated = [...current];
-
-      const family = {
-        ...updated[familyIndex],
-        members: [...updated[familyIndex].members],
-      };
-
-      while (family.members.length < count) {
-        family.members.push(createResident());
-      }
-
-      while (family.members.length > count) {
-        family.members.pop();
-      }
-
-      updated[familyIndex] = family;
-
-      return updated;
-    });
-  };
 
   /* =====================================================
      FAMILY NAME
@@ -504,156 +502,101 @@ useEffect(() => {
      Member 2 = Spouse
      Member 3+ = Child
   ===================================================== */
-const getRelationship = (
-  member: Resident,
-  memberIndex: number
+ const getRelationship = (
+  member: Resident
 ): string => {
-  if (member.familyRelationship) {
-    return member.familyRelationship;
-  }
-
-  if (memberIndex === 0) {
-    return "Family Head";
-  }
-
-  return "";
+  return member.familyRelationship || "";
 };
 
   /* =====================================================
      CREATE FAMILY FROM CHILD
   ===================================================== */
+const createFamilyFromChild = (
+  familyIndex: number,
+  memberIndex: number
+) => {
+  const sourceFamily = families[familyIndex];
 
-  const createFamilyFromChild = (
-    familyIndex: number,
-    memberIndex: number
-  ) => {
-    setFamilies((current) => {
-      const sourceFamily = current[familyIndex];
+  if (!sourceFamily) {
+    return;
+  }
 
-      if (!sourceFamily) {
-        return current;
-      }
+  const sourceResident =
+    sourceFamily.members[memberIndex];
 
-      const linkedResidentKey =
-        `${sourceFamily.id}-${memberIndex}`;
+  if (!sourceResident) {
+    return;
+  }
 
-      const alreadyExists = current.some(
-        (family) =>
-          family.linkedResidentKey ===
-          linkedResidentKey
-      );
+  const linkedResidentKey =
+    `${sourceFamily.id}-${memberIndex}`;
 
-      if (alreadyExists) {
-        return current;
-      }
+  const existingFamilyIndex =
+    families.findIndex(
+      (family) =>
+        family.linkedResidentKey ===
+        linkedResidentKey
+    );
 
-      const sourceResident =
-        sourceFamily.members[memberIndex];
+  // Kung mayroon nang family para sa member na ito,
+  // ipakita lang ulit ang existing family.
+  if (existingFamilyIndex !== -1) {
+    setActiveFamilyIndex(existingFamilyIndex);
+    return;
+  }
 
-      if (!sourceResident) {
-        return current;
-      }
+  const newFamilyId =
+    Math.max(
+      ...families.map((family) => family.id)
+    ) + 1;
 
-      const newFamilyId =
-        Math.max(
-          ...current.map(
-            (family) => family.id
-          )
-        ) + 1;
-
-      /*
-       * The child becomes the Family Head
-       * of the new family.
-       *
-       * We copy the child's information so the
-       * new family can have its own family data.
-       */
-
-      const familyHead: Resident = {
-  ...sourceResident,
-  hasOwnFamily: "",
-  familyRelationship: "Family Head",
-};
-      const newFamily: Family = {
-        id: newFamilyId,
-
-        familyName:
-          sourceResident.lastName || "",
-
-        linkedResidentKey,
-
-        members: [
-          familyHead,
-          createResident(),
-        ],
-      };
-
-      return [
-        ...current,
-        newFamily,
-      ];
-    });
+  const familyHead: Resident = {
+    ...sourceResident,
+    hasOwnFamily: "",
+    familyRelationship: "Family Head",
   };
+
+  const newFamily: Family = {
+    id: newFamilyId,
+    familyName:
+      sourceResident.lastName || "",
+    linkedResidentKey,
+
+    members: [
+      familyHead,
+    ],
+  };
+
+  setFamilies((current) => [
+    ...current,
+    newFamily,
+  ]);
+
+  setActiveFamilyIndex(
+    families.length
+  );
+};
 
   /* =====================================================
      REMOVE FAMILY CREATED BY CHILD
   ===================================================== */
 
-  const removeFamilyFromChild = (
-    familyIndex: number,
-    memberIndex: number
-  ) => {
-    setFamilies((current) => {
-      const sourceFamily =
-        current[familyIndex];
-
-      if (!sourceFamily) {
-        return current;
-      }
-
-      const linkedResidentKey =
-        `${sourceFamily.id}-${memberIndex}`;
-
-      return current.filter(
-        (family) =>
-          family.id === 1 ||
-          family.linkedResidentKey !==
-            linkedResidentKey
-      );
-    });
-  };
-
   /* =====================================================
      CHILD OWN FAMILY ANSWER
   ===================================================== */
 
-  const handleOwnFamilyChange = (
-    familyIndex: number,
-    memberIndex: number,
-    value: string
-  ) => {
-    updateMember(
-      familyIndex,
-      memberIndex,
-      "hasOwnFamily",
-      value
-    );
-
-    if (value === "Yes") {
-      createFamilyFromChild(
-        familyIndex,
-        memberIndex
-      );
-    }
-
-    if (value === "No") {
-      removeFamilyFromChild(
-        familyIndex,
-        memberIndex
-      );
-    }
-  };
-
+ const handleOwnFamilyChange = (
+  familyIndex: number,
+  memberIndex: number,
+  value: string
+) => {
+  updateMember(
+    familyIndex,
+    memberIndex,
+    "hasOwnFamily",
+    value
+  );
+};
   /* =====================================================
      PAGE
   ===================================================== */
@@ -721,27 +664,33 @@ const getRelationship = (
             HOUSEHOLD INFORMATION
         ================================================= */}
 
-        <section className="form-card">
+        {activeFamilyIndex === 0 &&
+  activeMemberIndex === 0 && ( 
+  <section className="form-card">
 
-          <div className="section-title">
+         <div className="section-title">
 
-            <span>
-              01
-            </span>
+  <span className="section-number">
+    01
+  </span>
 
-            <div>
+  <span className="section-icon">
+    <House size={20} strokeWidth={1.8} />
+  </span>
 
-              <h3>
-                Household Information
-              </h3>
+  <div>
 
-              <p>
-                Basic information about the residence
-              </p>
+    <h3>
+      Household Information
+    </h3>
 
-            </div>
+    <p>
+      Basic information about the residence
+    </p>
 
-          </div>
+  </div>
+
+</div>
 
           <div className="form-grid">
 
@@ -1084,13 +1033,23 @@ setValidationFields((prev) => ({
           </div>
 
         </section>
+        )}
 
         {/* =================================================
             FAMILIES
         ================================================= */}
 
-        {families.map(
-          (family, familyIndex) => (
+       {families
+  .slice(
+    activeFamilyIndex,
+    activeFamilyIndex + 1
+  )
+  .map(
+    (family) => {
+      const familyIndex =
+        activeFamilyIndex;
+
+      return (
 
             <section
               className="form-card"
@@ -1180,34 +1139,6 @@ setValidationFields((prev) => ({
 
                   </div>
 
-                  {/* NUMBER OF FAMILY MEMBERS */}
-
-                  <div className="form-group">
-
-                    <label>
-                      Number of Family Members *
-                    </label>
-
-                    <input
-                      type="number"
-                      min="2"
-                      max="30"
-                      value={
-                        family.members.length
-                      }
-                      onChange={(event) =>
-                        changeMemberCount(
-                          familyIndex,
-                          Number(
-                            event.target.value
-                          )
-                        )
-                      }
-                      placeholder="Enter number of members"
-                    />
-
-                  </div>
-
                 </div>
 
               </div>
@@ -1221,19 +1152,25 @@ setValidationFields((prev) => ({
 <h4>
   Name of Family Members
 </h4>
+{family.members
+  .slice(
+    activeMemberIndex,
+    activeMemberIndex + 1
+  )
+  .map(
+    (
+      member,
+      _memberIndex
+    ) => {
 
-                {family.members.map(
-                  (
-                    member,
-                    memberIndex
-                  ) => {
+const actualMemberIndex =
+  activeMemberIndex;
+
+  const memberIndex =
+  actualMemberIndex;
 
                     const role =
-  
-                    getRelationship(
-                      member,
-                      memberIndex
-                    );
+  getRelationship(member);
 
                     return (
                       <>
@@ -1302,78 +1239,72 @@ setValidationFields((prev) => ({
       </label>
 
       <select
-        value={member.familyRelationship}
-        onChange={(event) =>
-          updateMember(
-            familyIndex,
-            memberIndex,
-            "familyRelationship",
-            event.target.value
-          )
-        }
-      >
-        <option value="">
-          Select relationship
-        </option>
+  value={member.familyRelationship}
+  onChange={(event) =>
+    updateMember(
+      familyIndex,
+      memberIndex,
+      "familyRelationship",
+      event.target.value
+    )
+  }
+>
+  <option value="">
+    Select Relationship
+  </option>
 
-        {memberIndex === 0 && (
-          <option value="Family Head">
-            Family Head
-          </option>
-        )}
+  <option value="Family Head">
+    Family Head
+  </option>
 
-        {memberIndex !== 0 && (
-          <>
-            <option value="Spouse">
-              Spouse
-            </option>
+  <option value="Spouse">
+    Spouse
+  </option>
 
-            <option value="Child">
-              Child
-            </option>
+  <option value="Child">
+    Child
+  </option>
 
-            <option value="Grandchild">
-              Grandchild
-            </option>
+  <option value="Grandchild">
+    Grandchild
+  </option>
 
-            <option value="Grandparent">
-              Grandparent
-            </option>
+  <option value="Parent">
+    Parent
+  </option>
 
-            <option value="Parent">
-              Parent
-            </option>
+  <option value="Grandparent">
+    Grandparent
+  </option>
 
-            <option value="Sibling">
-              Sibling
-            </option>
+  <option value="Sibling">
+    Sibling
+  </option>
 
-            <option value="Niece">
-              Niece
-            </option>
+  <option value="Niece">
+    Niece
+  </option>
 
-            <option value="Nephew">
-              Nephew
-            </option>
+  <option value="Nephew">
+    Nephew
+  </option>
 
-            <option value="Cousin">
-              Cousin
-            </option>
+  <option value="Cousin">
+    Cousin
+  </option>
 
-            <option value="Relative">
-              Relative
-            </option>
+  <option value="Relative">
+    Relative
+  </option>
 
-            <option value="Adopted Child">
-              Adopted Child
-            </option>
+  <option value="Adopted Child">
+    Adopted Child
+  </option>
 
-            <option value="Other">
-              Other
-            </option>
-          </>
-        )}
-      </select>
+  <option value="Other">
+    Other
+  </option>
+</select>
     </div>
 
     {/* STATUS */}
@@ -2131,7 +2062,9 @@ setValidationFields((prev) => ({
                             CHILD OWN FAMILY
                         ================================================= */}
 
-                        {memberIndex > 0 && (
+                       {member.familyRelationship &&
+  member.familyRelationship !== "Family Head" &&
+  member.familyRelationship !== "Spouse" && (
 
                           <div className="child-family-question">
 
@@ -3422,12 +3355,54 @@ setValidationFields((prev) => ({
 </>         
                     );
                   }
-                )}  
+                )} 
+
+                <div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    marginTop: "20px",
+  }}
+><div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    gap: "12px",
+    margin: "20px 0",
+  }}
+>
+  {activeMemberIndex > 0 && (
+    <button
+      type="button"
+      onClick={() =>
+        setActiveMemberIndex(
+          (current) => current - 1
+        )
+      }
+      className="new-census-button"
+    >
+      ← Previous Member
+    </button>
+  )}
+
+  <button
+    type="button"
+    onClick={() =>
+      addFamilyMember(familyIndex)
+    }
+    className="new-census-button"
+  >
+    + Add Family Member
+  </button>
+</div>
+</div>
+
                 </div> 
             </section>
-          ))}
-                
-
+            
+      )
+    })}
+ 
         {/* =================================================
             SUBMIT
         ================================================= */}
@@ -3498,52 +3473,126 @@ setValidationFields((prev) => ({
   return;
 }
 
-  // Check resident information
-  for (const family of families) {
-    if (family.members.length === 0) {
-  setValidationError(
-    "Each family must have at least one resident."
-  );
-  return;
-}
+  // =================================================
+// CHECK CURRENT FAMILY RESIDENT INFORMATION
+// =================================================
 
-    for (const member of family.members) {
-     if (
-  !member.firstName.trim() ||
-  !member.lastName.trim() ||
-  !member.birthDate ||
-  !member.birthPlace.trim() ||
-  !member.sex ||
-  !member.civilStatus ||
-  !member.nationality ||
-  !member.religion
-) {
+const currentFamily = families[activeFamilyIndex];
+
+if (!currentFamily || currentFamily.members.length === 0) {
   setValidationError(
-    "Please complete all required resident information before submitting."
+    `Family ${activeFamilyIndex + 1} must have at least one resident.`
   );
 
   setTimeout(() => {
-  setValidationError("");
-}, 1500);
+    setValidationError("");
+  }, 1500);
 
   return;
 }
-    }
+
+for (
+  let memberIndex = 0;
+  memberIndex < currentFamily.members.length;
+  memberIndex++
+) {
+  const member = currentFamily.members[memberIndex];
+
+  const missingFields: string[] = [];
+
+  if (!member.firstName.trim()) {
+    missingFields.push("First Name");
   }
 
-  setValidationError("");
+  if (!member.lastName.trim()) {
+    missingFields.push("Last Name");
+  }
 
-  const censusData = {
-    householdNumber,
-    household: {
-      houseNumber,
-      street,
-      purok,
-      yearsInBarangay,
-      previousAddress,
-    },
-    families,
-  };
+  if (!member.birthDate) {
+    missingFields.push("Date of Birth");
+  }
+
+  if (!member.birthPlace.trim()) {
+    missingFields.push("Place of Birth");
+  }
+
+  if (!member.sex) {
+    missingFields.push("Sex");
+  }
+
+  if (!member.civilStatus) {
+    missingFields.push("Civil Status");
+  }
+
+  if (!member.nationality) {
+    missingFields.push("Nationality");
+  }
+
+  if (!member.religion) {
+    missingFields.push("Religion");
+  }
+
+  if (missingFields.length > 0) {
+    setValidationError(
+      `Family ${activeFamilyIndex + 1}, Resident ${
+        memberIndex + 1
+      }: Please complete ${missingFields.join(", ")}.`
+    );
+
+    setTimeout(() => {
+      setValidationError("");
+    }, 3000);
+
+    return;
+  }
+}
+
+setValidationError("");
+
+const censusData = {
+  householdNumber,
+  household: {
+    houseNumber,
+    street,
+    purok,
+    yearsInBarangay,
+    previousAddress,
+  },
+  families,
+};
+
+// =================================================
+// ADDITIONAL FAMILY
+// ONLY FAMILY 1 CAN CREATE THE NEXT FAMILY
+// =================================================
+
+if (activeFamilyIndex === 0) {
+  const memberIndex = currentFamily.members.findIndex(
+    (member) => member.hasOwnFamily === "Yes"
+  );
+
+  if (memberIndex !== -1) {
+    createFamilyFromChild(
+      activeFamilyIndex,
+      memberIndex
+    );
+
+    alert(
+      "Please fill up the information for the additional family."
+    );
+
+    setActiveFamilyIndex(1);
+
+    return;
+  }
+}
+
+onSubmitCensus(censusData);
+
+console.log(
+  "BARANGAY CENSUS DATA",
+  censusData
+);
 
   onSubmitCensus(censusData);
 

@@ -1,3 +1,10 @@
+import {
+  House,
+  UsersRound,
+  Users,
+  ArrowLeft,
+} from "lucide-react";
+
 type HouseholdsProps = {
   censusRecords: any[];
   onBackToDashboard: () => void;
@@ -66,17 +73,21 @@ function Households({
         </div>
 
         <button
-          onClick={onBackToDashboard}
-          style={{
-            border: "1px solid #dfe4eb",
-            background: "white",
-            borderRadius: "10px",
-            padding: "11px 18px",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          ← Back to Dashboard
+  onClick={onBackToDashboard}
+  style={{
+    border: "1px solid #dfe4eb",
+    background: "white",
+    borderRadius: "10px",
+    padding: "11px 18px",
+    cursor: "pointer",
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  }}
+>
+         <ArrowLeft size={17} strokeWidth={1.8} />
+Back to Dashboard
         </button>
 
       </div>
@@ -182,20 +193,19 @@ function Households({
                     }}
                   >
 
-                    <div
-                      style={{
-                        width: "45px",
-                        height: "45px",
-                        borderRadius: "11px",
-                        background: "#f0f4f9",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "21px",
-                      }}
-                    >
-                      🏠
-                    </div>
+                   <div
+  style={{
+    width: "45px",
+    height: "45px",
+    borderRadius: "11px",
+    background: "#f0f4f9",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  }}
+>
+  <House size={22} strokeWidth={1.8} />
+</div>
 
                     <div>
 
@@ -275,23 +285,37 @@ function Households({
                     }}
                   >
 
-                    <span>
-                      👨‍👩‍👧{" "}
-                      <strong>
-                        {families.length}
-                      </strong>{" "}
-                      Family
+                    <span
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  <UsersRound size={16} strokeWidth={1.8} />
+
+  <strong>
+    {families.length}
+  </strong>{" "}
+  Family
                       {families.length !== 1
                         ? "ies"
                         : ""}
                     </span>
 
-                    <span>
-                      👥{" "}
-                      <strong>
-                        {residents}
-                      </strong>{" "}
-                      Resident
+                    <span
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  <Users size={16} strokeWidth={1.8} />
+
+  <strong>
+    {residents}
+  </strong>{" "}
+  Resident
                       {residents !== 1
                         ? "s"
                         : ""}

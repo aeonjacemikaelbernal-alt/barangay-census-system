@@ -1,5 +1,11 @@
 import { useState } from "react";
 
+import {
+  UsersRound,
+  Users,
+  ArrowLeft,
+} from "lucide-react";
+
 type FamiliesProps = {
   censusRecords: any[];
   onBackToDashboard: () => void;
@@ -58,7 +64,16 @@ if (selectedFamily) {
           marginBottom: "25px",
         }}
       >
-        ← Back to Families
+        <span
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  }}
+>
+  <ArrowLeft size={17} strokeWidth={1.8} />
+  Back to Families
+</span>
       </button>
 
       <h1
@@ -427,20 +442,19 @@ if (selectedFamily) {
                     }}
                   >
                     <div
-                      style={{
-                        width: "45px",
-                        height: "45px",
-                        borderRadius: "11px",
-                        background: "#f0f4f9",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "21px",
-                      }}
-                    >
-                      👨‍👩‍👧
-                    </div>
-
+  style={{
+    width: "45px",
+    height: "45px",
+    borderRadius: "11px",
+    background: "#f0f4f9",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "21px",
+  }}
+>
+  <UsersRound size={21} strokeWidth={1.8} />
+</div>
                     <div>
                       <h3
                         style={{
@@ -560,16 +574,18 @@ if (selectedFamily) {
                   </div>
 
                   <div
-                    style={{
-                      marginTop: "16px",
-                      paddingTop: "14px",
-                      borderTop:
-                        "1px solid #eef0f4",
-                      fontSize: "13px",
-                      color: "#758094",
-                    }}
-                  >
-                    👥{" "}
+  style={{
+    marginTop: "16px",
+    paddingTop: "14px",
+    borderTop: "1px solid #eef0f4",
+    fontSize: "13px",
+    color: "#758094",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+                    <Users size={16} strokeWidth={1.8} />
                     <strong>
                       {members.length}
                     </strong>{" "}

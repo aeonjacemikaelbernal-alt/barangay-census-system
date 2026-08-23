@@ -1,3 +1,8 @@
+import {
+  BriefcaseBusiness,
+  ArrowLeft,
+} from "lucide-react";
+
 type OccupationProps = {
   censusRecords: any[];
   onBackToDashboard: () => void;
@@ -93,19 +98,23 @@ function Occupation({
         </div>
 
         <button
-          type="button"
-          onClick={onBackToDashboard}
-          style={{
-            border: "1px solid #dfe4eb",
-            background: "white",
-            borderRadius: "10px",
-            padding: "11px 18px",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          ← Back to Dashboard
-        </button>
+  type="button"
+  onClick={onBackToDashboard}
+  style={{
+    border: "1px solid #dfe4eb",
+    background: "white",
+    borderRadius: "10px",
+    padding: "11px 18px",
+    cursor: "pointer",
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  }}
+>
+  <ArrowLeft size={16} strokeWidth={1.8} />
+  Back to Dashboard
+</button>
 
       </div>
 
@@ -183,6 +192,55 @@ function Occupation({
                     padding: "22px",
                   }}
                 >
+                    
+                  <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "16px",
+  }}
+>
+  <div
+    style={{
+      width: "45px",
+      height: "45px",
+      borderRadius: "11px",
+      background: "#f0f4f9",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}
+  >
+    <BriefcaseBusiness
+      size={21}
+      strokeWidth={1.8}
+    />
+  </div>
+
+  <div>
+    <span
+      style={{
+        display: "block",
+        fontSize: "10px",
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        color: "#8993a5",
+      }}
+    >
+      OCCUPATION RECORD
+    </span>
+
+    <span
+      style={{
+        fontSize: "12px",
+        color: "#758094",
+      }}
+    >
+      Employment information
+    </span>
+  </div>
+</div>
 
                   <h3
                     style={{

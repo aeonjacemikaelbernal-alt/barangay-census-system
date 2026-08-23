@@ -1,6 +1,22 @@
+import { useState } from "react";
+
+import {
+  Home,
+  Users,
+  House,
+  UsersRound,
+  GraduationCap,
+  BriefcaseBusiness,
+  Wrench,
+  WalletCards,
+  Vote,
+  Plus,
+  Menu,
+  X,
+} from "lucide-react";
+
 export type Page =
   | "dashboard"
-  | "census"
   | "residents"
   | "households"
   | "families"
@@ -9,9 +25,7 @@ export type Page =
   | "skills"
   | "income"
   | "voters"
-  | "education"
-
-  ;
+  | "census";
 
 type SidebarProps = {
   page: Page;
@@ -24,8 +38,21 @@ function Sidebar({
   onNavigate,
   onNewCensus,
 }: SidebarProps) {
+
+  const [collapsed, setCollapsed] = useState(false);
+
+  const handleNavigate = (nextPage: Page) => {
+    console.log("SIDEBAR CLICKED:", nextPage);
+    onNavigate(nextPage);
+  };
+
   return (
-    <aside className="dashboard-sidebar">
+<aside
+  className={`dashboard-sidebar ${
+    collapsed ? "collapsed" : ""
+  }`}
+>
+      {/* BRAND */}
 
       <div className="sidebar-brand">
 
@@ -40,115 +67,174 @@ function Sidebar({
 
       </div>
 
+      <button
+  type="button"
+  className="sidebar-toggle"
+  onClick={() => setCollapsed(!collapsed)}
+  aria-label="Toggle sidebar"
+>
+  {collapsed ? (
+    <Menu size={22} strokeWidth={2} />
+  ) : (
+    <X size={22} strokeWidth={2} />
+  )}
+</button>
+
+      {/* NAVIGATION */}
+
       <nav className="dashboard-nav">
 
         <button
+          type="button"
           className={`nav-item ${
             page === "dashboard" ? "active" : ""
           }`}
-          onClick={() => onNavigate("dashboard")}
+          onClick={() => handleNavigate("dashboard")}
         >
-          <span>⌂</span>
-          Dashboard
+         <span>
+  <Home size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Dashboard
+  </span>
         </button>
 
         <button
+          type="button"
           className={`nav-item ${
             page === "residents" ? "active" : ""
           }`}
-          onClick={() => onNavigate("residents")}
+          onClick={() => handleNavigate("residents")}
         >
-          <span>👥</span>
-          Residents
+          <span>
+  <Users size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Residents
+  </span>
         </button>
 
         <button
+          type="button"
           className={`nav-item ${
             page === "households" ? "active" : ""
           }`}
-          onClick={() => onNavigate("households")}
+          onClick={() => handleNavigate("households")}
         >
-          <span>🏠</span>
-          Households
+         <span>
+  <House size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Households
+  </span>
         </button>
 
         <button
+          type="button"
           className={`nav-item ${
             page === "families" ? "active" : ""
           }`}
-          onClick={() => {
-            console.log("FAMILIES SIDEBAR CLICKED");
-            onNavigate("families");
-          }}
+          onClick={() => handleNavigate("families")}
         >
-          <span>👨‍👩‍👧</span>
-          Families
+         <span>
+  <UsersRound size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Families
+  </span>
         </button>
 
         <div className="nav-label">
           DATA CATEGORIES
         </div>
 
+        {/* EDUCATION */}
+
         <button
+          type="button"
           className={`nav-item ${
             page === "education" ? "active" : ""
           }`}
-          onClick={() => onNavigate("education")}
+           onClick={() => handleNavigate("education")}
         >
-          <span>🎓</span>
-          Education
+         <span>
+  <GraduationCap size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Education
+  </span>
         </button>
 
         <button
-          className={`nav-item ${
-            page === "occupation" ? "active" : ""
-          }`}
-          onClick={() => onNavigate("occupation")}
+          type="button"
+          className="nav-item"
+          onClick={() => handleNavigate("occupation")}
         >
-          <span>💼</span>
-          Occupation
+         <span>
+  <BriefcaseBusiness size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Occupation
+  </span>
         </button>
 
         <button
-          className={`nav-item ${
-            page === "skills" ? "active" : ""
-          }`}
-          onClick={() => onNavigate("skills")}
+          type="button"
+          className="nav-item"
+          onClick={() => handleNavigate("skills")}
         >
-          <span>🛠</span>
-          Skills
+         <span>
+  <Wrench size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Skills
+  </span>
         </button>
 
         <button
-          className={`nav-item ${
-            page === "income" ? "active" : ""
-          }`}
-          onClick={() => onNavigate("income")}
+          type="button"
+          className="nav-item"
+          onClick={() => handleNavigate("income")}
         >
-          <span>💰</span>
-          Income
+         <span>
+  <WalletCards size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Income
+  </span>
         </button>
 
         <button
-          className={`nav-item ${
-            page === "voters" ? "active" : ""
-          }`}
-          onClick={() => onNavigate("voters")}
+          type="button"
+          className="nav-item"
+         onClick={() => handleNavigate("voters")}
         >
-          <span>🗳</span>
-          Voters
+          <span>
+  <Vote size={18} strokeWidth={1.8} />
+</span>
+<span className="nav-text">
+    Voters
+  </span>
         </button>
 
       </nav>
 
+      {/* BOTTOM */}
+
       <div className="sidebar-bottom">
 
         <button
+          type="button"
           className="new-census-sidebar"
           onClick={onNewCensus}
         >
-          <span>＋</span>
-          New Census
+          <span className="nav-icon">
+  <Plus size={18} strokeWidth={2} />
+</span>
+
+<span className="nav-text">
+  New Census
+</span>
         </button>
 
       </div>

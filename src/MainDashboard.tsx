@@ -1,6 +1,19 @@
 import "./dashboard.css";
+import Sidebar from "./Sidebar";
 
- import type { Page } from "./Sidebar";
+import type { Page } from "./Sidebar";
+import {
+  Users,
+  House,
+  UsersRound,
+  GraduationCap,
+  BriefcaseBusiness,
+  Wrench,
+  WalletCards,
+  Vote,
+  UserRound,
+  Baby,
+} from "lucide-react";
 
 type MainDashboardProps = {
   onNewCensus: () => void;
@@ -72,125 +85,11 @@ const totalChildren = allFamilies.reduce(
   return (
     <div className="dashboard-page">
 
-      {/* =====================================================
-          SIDEBAR
-      ===================================================== */}
-
-      <aside className="dashboard-sidebar">
-
-        <div className="sidebar-brand">
-
-          <div className="sidebar-logo">
-            LOGO
-          </div>
-
-          <div>
-            <h2>
-              Barangay
-            </h2>
-
-            <span>
-              Digital Census
-            </span>
-          </div>
-
-        </div>
-
-        <nav className="dashboard-nav">
-
-          <button className="nav-item active">
-            <span>⌂</span>
-            Dashboard
-          </button>
-<button
-  className="nav-item"
- onClick={() => onNavigate("residents")}
->
-  <span>👥</span>
-  Residents
-</button>
-
-          <button className="nav-item">
-            <span>🏠</span>
-            Households
-          </button>
-
-          <button
-  type="button"
-  className="nav-item"
-  onClick={() => onNavigate("families")}
->
-  <span>👨‍👩‍👧</span>
-  Families
-</button>
-
-          <div className="nav-label">
-            DATA CATEGORIES
-          </div>
-<button
-  type="button"
-  className="nav-item"
-  onClick={() => onNavigate("education")}
->
-  <span>🎓</span>
-  Education
-</button>
-
-          <button
-  type="button"
-  className="nav-item"
-  onClick={() => {
-    console.log("OCCUPATION BUTTON CLICKED");
-    console.log("NAVIGATING TO OCCUPATION");
-    onNavigate("occupation");
-  }}
->
-  <span>💼</span>
-  Occupation
-</button>
-
-          <button
-  type="button"
-  className="nav-item"
-  onClick={() => onNavigate("skills")}
->
-  <span>🛠</span>
-  Skills
-</button>
-
-          <button
-  type="button"
-  className="nav-item"
-  onClick={() => onNavigate("income")}
->
-  <span>💰</span>
-  Income
-</button>
-
-          <button
-  type="button"
-  className="nav-item"
-  onClick={() => onNavigate("voters")}
->
-  <span>🗳</span>
-  Voters
-</button>
-
-        </nav>
-
-        <div className="sidebar-bottom">
-
-          <button
-            className="new-census-sidebar"
-            onClick={onNewCensus}
-          >
-            <span>＋</span>
-            New Census
-          </button>
-
-        </div>
-
-      </aside>
+    <Sidebar
+  page="dashboard"
+  onNavigate={onNavigate}
+  onNewCensus={onNewCensus}
+/>
 
       {/* =====================================================
           MAIN CONTENT
@@ -239,9 +138,9 @@ const totalChildren = allFamilies.reduce(
 
           <div className="stat-card">
 
-            <div className="stat-icon">
-              👥
-            </div>
+           <div className="stat-icon">
+  <Users size={26} strokeWidth={1.8} />
+</div>
 
             <div className="stat-content">
 
@@ -263,10 +162,9 @@ const totalChildren = allFamilies.reduce(
 
           <div className="stat-card">
 
-            <div className="stat-icon">
-              🏠
-            </div>
-
+         <div className="stat-icon">
+  <House size={26} strokeWidth={1.8} />
+</div>
             <div className="stat-content">
 
               <span>
@@ -287,9 +185,9 @@ const totalChildren = allFamilies.reduce(
 
           <div className="stat-card">
 
-            <div className="stat-icon">
-              👨‍👩‍👧
-            </div>
+           <div className="stat-icon">
+  <UsersRound size={26} strokeWidth={1.8} />
+</div>
 
             <div className="stat-content">
 
@@ -311,9 +209,9 @@ const totalChildren = allFamilies.reduce(
 
           <div className="stat-card">
 
-            <div className="stat-icon">
-              👤
-            </div>
+           <div className="stat-icon">
+  <UserRound size={26} strokeWidth={1.8} />
+</div>
 
             <div className="stat-content">
 
@@ -335,9 +233,9 @@ const totalChildren = allFamilies.reduce(
 
           <div className="stat-card">
 
-            <div className="stat-icon">
-              🗳
-            </div>
+          <div className="stat-icon">
+  <Vote size={26} strokeWidth={1.8} />
+</div>
 
             <div className="stat-content">
 
@@ -359,9 +257,9 @@ const totalChildren = allFamilies.reduce(
 
           <div className="stat-card">
 
-            <div className="stat-icon">
-              👶
-            </div>
+           <div className="stat-icon">
+  <Baby size={26} strokeWidth={1.8} />
+</div>
 
             <div className="stat-content">
 
@@ -414,9 +312,9 @@ const totalChildren = allFamilies.reduce(
   className="category-card"
   onClick={() => onNavigate("residents")}
 >
-  <div className="category-icon">
-    👥
-  </div>
+ <div className="category-icon">
+  <Users size={28} strokeWidth={1.8} />
+</div>
 
   <div>
     <h3>
@@ -438,9 +336,9 @@ const totalChildren = allFamilies.reduce(
   className="category-card"
   onClick={() => onNavigate("households")}
 >
-  <div className="category-icon">
-    👥
-  </div>
+ <div className="category-icon">
+  <House size={28} strokeWidth={1.8} />
+</div>
 
   <div>
     <h3>
@@ -462,9 +360,9 @@ const totalChildren = allFamilies.reduce(
   className="category-card"
   onClick={() => onNavigate("families")}
 >
-              <div className="category-icon">
-                👨‍👩‍👧
-              </div>
+             <div className="category-icon">
+  <UsersRound size={28} strokeWidth={1.8} />
+</div>
 
               <div>
                 <h3>
@@ -489,8 +387,8 @@ const totalChildren = allFamilies.reduce(
 >
 
   <div className="category-icon">
-    🎓
-  </div>
+  <GraduationCap size={28} strokeWidth={1.8} />
+</div>
 
   <div>
     <h3>
@@ -515,8 +413,8 @@ const totalChildren = allFamilies.reduce(
 >
 
               <div className="category-icon">
-                💼
-              </div>
+  <BriefcaseBusiness size={28} strokeWidth={1.8} />
+</div>
 
               <div>
                 <h3>
@@ -539,9 +437,9 @@ const totalChildren = allFamilies.reduce(
   className="category-card"
   onClick={() => onNavigate("skills")}
 >
-              <div className="category-icon">
-                🛠
-              </div>
+             <div className="category-icon">
+  <Wrench size={28} strokeWidth={1.8} />
+</div>
 
               <div>
                 <h3>
@@ -564,9 +462,9 @@ const totalChildren = allFamilies.reduce(
   className="category-card"
   onClick={() => onNavigate("income")}
 >
-              <div className="category-icon">
-                💰
-              </div>
+             <div className="category-icon">
+  <WalletCards size={28} strokeWidth={1.8} />
+</div>
 
               <div>
                 <h3>
@@ -589,9 +487,9 @@ const totalChildren = allFamilies.reduce(
   className="category-card"
   onClick={() => onNavigate("voters")}
 >
-              <div className="category-icon">
-                🗳
-              </div>
+             <div className="category-icon">
+  <Vote size={28} strokeWidth={1.8} />
+</div>
 
               <div>
                 <h3>
@@ -748,9 +646,9 @@ console.log("RECENT ACTIVITY DATA:", safeRecords);
               }
             >
 
-              <div className="recent-record-icon">
-                🏠
-              </div>
+            <div className="recent-record-icon">
+  <House size={20} strokeWidth={1.8} />
+</div>
 
               <div className="recent-record-main">
 
@@ -792,19 +690,50 @@ console.log("RECENT ACTIVITY DATA:", safeRecords);
 
                 <div className="recent-record-stats">
 
-                  <span>
-                    👨‍👩‍👧 {families.length} Family
-                    {families.length !== 1
-                      ? "ies"
-                      : ""}
-                  </span>
+                  <span
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  <UsersRound size={15} strokeWidth={1.8} />
 
-                  <span>
-                    👥 {residents} Resident
-                    {residents !== 1
-                      ? "s"
-                      : ""}
-                  </span>
+  {families.length} Family
+  {families.length !== 1
+    ? "ies"
+    : ""}
+</span>
+                  
+                  <span
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  <UsersRound size={15} strokeWidth={1.8} />
+
+  {families.length} Family
+  {families.length !== 1
+    ? "ies"
+    : ""}
+</span>
+
+                  <span
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  <Users size={15} strokeWidth={1.8} />
+
+  {residents} Resident
+  {residents !== 1
+    ? "s"
+    : ""}
+</span>
 
                 </div>
 

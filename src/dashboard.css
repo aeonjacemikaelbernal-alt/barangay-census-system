@@ -106,6 +106,26 @@
   font-weight: 600;
 }
 
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-text {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .nav-label {
   padding: 22px 12px 8px;
   font-size: 10px;
@@ -593,4 +613,242 @@
 .dashboard-page {
   position: relative;
   isolation: isolate;
+}
+/* =========================================================
+   DASHBOARD SUMMARY CARD ICONS
+   Barangay Government Style
+   ========================================================= */
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.stat-card:hover .stat-icon {
+  transform: translateY(-2px);
+}
+
+.stat-icon-residents {
+  background: #d9eee7;
+  color: #176b57;
+}
+
+.stat-icon-households {
+  background: #dce9f5;
+  color: #315f85;
+}
+
+.stat-icon-families {
+  background: #e8def2;
+  color: #6b4f8a;
+}
+
+.stat-icon-heads {
+  background: #f5e6c8;
+  color: #94651a;
+}
+
+.stat-icon-voters {
+  background: #d5ece9;
+  color: #28756d;
+}
+
+.stat-icon-children {
+  background: #f3dfd2;
+  color: #a85d32;
+}
+/* =========================================================
+   COLLAPSIBLE SIDEBAR
+   ========================================================= */
+
+.dashboard-sidebar {
+  position: relative;
+  width: 262px;
+  transition: width 0.25s ease;
+}
+
+.dashboard-sidebar.sidebar-collapsed {
+  width: 76px;
+}
+
+/* Toggle button */
+
+.sidebar-toggle {
+  position: absolute;
+  top: 20px;
+  right: -16px;
+
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #dce2e8;
+  border-radius: 50%;
+
+  background: #ffffff;
+  color: #176b57;
+
+  cursor: pointer;
+
+  z-index: 20;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  background: #e8f3ef;
+  color: #176b57;
+  transform: scale(1.05);
+}
+
+/* Collapsed brand */
+
+.sidebar-collapsed .sidebar-brand > div:not(.sidebar-logo) {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-logo {
+  margin: 0 auto;
+}
+
+/* Hide labels when collapsed */
+
+.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-collapsed .nav-text {
+  display: none;
+}
+
+.sidebar-collapsed .nav-icon {
+  margin: 0;
+}
+
+.sidebar-collapsed .nav-label {
+  display: none;
+}
+
+/* Bottom button */
+
+.sidebar-collapsed .new-census-sidebar {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-collapsed .new-census-sidebar .nav-text {
+  display: none;
+}
+/* =====================================================
+   COLLAPSIBLE SIDEBAR
+===================================================== */
+
+.dashboard-sidebar {
+  width: 262px;
+  transition: width 0.25s ease;
+  position: relative;
+}
+
+.dashboard-sidebar.collapsed {
+  width: 78px;
+}
+
+/* Hide text when collapsed */
+
+.dashboard-sidebar.collapsed .nav-text,
+.dashboard-sidebar.collapsed .sidebar-brand > div:last-child,
+.dashboard-sidebar.collapsed .nav-label {
+  display: none;
+}
+
+/* Center icons */
+
+.dashboard-sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.dashboard-sidebar.collapsed .nav-item > span:first-child {
+  margin-right: 0;
+}
+
+.dashboard-sidebar.collapsed .new-census-sidebar {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Keep logo visible */
+
+.dashboard-sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+}
+
+.dashboard-sidebar.collapsed .sidebar-logo {
+  margin: 0 auto;
+}
+
+/* Toggle button */
+
+.sidebar-toggle {
+  position: absolute;
+  top: 18px;
+  right: -14px;
+
+  width: 30px;
+  height: 30px;
+
+  border: 1px solid #d9e1ec;
+  border-radius: 50%;
+
+  background: #ffffff;
+  color: #172033;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  z-index: 20;
+
+  font-size: 18px;
+  line-height: 1;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  background: #f1f5f9;
+}
+.dashboard-main {
+  transition: margin-left 0.25s ease;
 }

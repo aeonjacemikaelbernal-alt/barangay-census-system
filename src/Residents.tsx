@@ -1,4 +1,5 @@
 import "./dashboard.css";
+import { UserRound, Cake, Vote } from "lucide-react";
 
 type ResidentsProps = {
   censusRecords: any[];
@@ -77,9 +78,9 @@ function Residents({ censusRecords }: ResidentsProps) {
                 key={`${resident.householdNumber}-${index}`}
               >
 
-                <div className="recent-record-icon">
-                  👤
-                </div>
+                  <div className="recent-record-icon">
+  <UserRound size={22} strokeWidth={1.8} />
+</div>
 
                 <div className="recent-record-main">
 
@@ -116,13 +117,15 @@ function Residents({ censusRecords }: ResidentsProps) {
 
                   <div className="recent-record-stats">
 
-                    <span>
-                      🎂 {resident.birthDate || "—"}
-                    </span>
+                   <span>
+  <Cake size={16} strokeWidth={1.8} />
+  {resident.birthDate || "—"}
+</span>
 
-                    <span>
-                      🗳 {resident.voterStatus || "—"}
-                    </span>
+                   <span>
+  <Vote size={16} strokeWidth={1.8} />
+  {resident.voterStatus || "—"}
+</span>
 
                   </div>
 
