@@ -8,9 +8,12 @@ type LoginProps = {
 
 function Login({ onLoginSuccess }: LoginProps) {
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+ const [loginEmail, setLoginEmail] = useState("");
+const [loginPassword, setLoginPassword] = useState("");
+
+const [registerEmail, setRegisterEmail] = useState("");
+const [registerPassword, setRegisterPassword] = useState("");
+const [fullName, setFullName] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -25,11 +28,11 @@ function Login({ onLoginSuccess }: LoginProps) {
     setSuccessMessage("");
     setLoading(true);
 
-    const { error } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+   const { error } =
+  await supabase.auth.signInWithPassword({
+    email: loginEmail,
+    password: loginPassword,
+  });
 
     setLoading(false);
 
@@ -51,9 +54,9 @@ function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     const { error } =
-      await supabase.auth.signUp({
-        email,
-        password,
+  await supabase.auth.signUp({
+    email: registerEmail,
+    password: registerPassword,
         options: {
           data: {
             full_name: fullName,
@@ -72,7 +75,7 @@ function Login({ onLoginSuccess }: LoginProps) {
       "Registration successful. You can now log in."
     );
 
-    setPassword("");
+  setRegisterPassword("");
     setIsRegister(false);
   };
 
@@ -103,10 +106,10 @@ function Login({ onLoginSuccess }: LoginProps) {
               <input
   type="email"
   placeholder="Email"
-  value={email}
-  onChange={(event) =>
-    setEmail(event.target.value)
-  }
+ value={loginEmail}
+onChange={(event) =>
+  setLoginEmail(event.target.value)
+}
   required
 />
             </div>
@@ -115,10 +118,10 @@ function Login({ onLoginSuccess }: LoginProps) {
               <input
   type="password"
   placeholder="Password"
-  value={password}
-  onChange={(event) =>
-    setPassword(event.target.value)
-  }
+ value={loginPassword}
+onChange={(event) =>
+  setLoginPassword(event.target.value)
+}
   required
 />
             </div>
@@ -191,10 +194,10 @@ function Login({ onLoginSuccess }: LoginProps) {
               <input
   type="email"
   placeholder="Email"
-  value={email}
-  onChange={(event) =>
-    setEmail(event.target.value)
-  }
+ value={registerEmail}
+onChange={(event) =>
+  setRegisterEmail(event.target.value)
+}
   required
 />
             </div>
@@ -203,10 +206,10 @@ function Login({ onLoginSuccess }: LoginProps) {
               <input
   type="password"
   placeholder="Password"
-  value={password}
-  onChange={(event) =>
-    setPassword(event.target.value)
-  }
+ value={registerPassword}
+onChange={(event) =>
+  setRegisterPassword(event.target.value)
+}
   required
 />
             </div>
