@@ -1,32 +1,48 @@
+import { useEffect, useState } from "react";
 import "./dashboard.css";
 import { UserRound, Cake, Vote } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
-type ResidentsProps = {
-  censusRecords: any[];
+type Resident = {
+  resident_id: number;
+  household_id: number | null;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  suffix: string | null;
+  sex: string | null;
+  birth_date: string | null;
+  civil_status: string | null;
+  relationship: string | null;
+  resident_type: string | null;
+  has_own_family: boolean | null;
 };
 
-function Residents({ censusRecords }: ResidentsProps) {
-  const safeRecords = Array.isArray(censusRecords)
-    ? censusRecords.filter(Boolean)
-    : [];
+function Residents() {
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const residents = safeRecords.flatMap((record: any) => {
-    const families = Array.isArray(record?.families)
-      ? record.families
-      : [];
+  useEffect(() => {
+    loadResidents();
+  }, []);
 
-    return families.flatMap((family: any) => {
-      const members = Array.isArray(family?.members)
-        ? family.members
-        : [];
+  async function loadResidents() {
+    setLoading(true);
 
-      return members.map((member: any) => ({
-        ...member,
-        familyName: family?.familyName || "",
-        householdNumber: record?.householdNumber || "",
-      }));
-    });
-  });
+    const { data, error } = await supabase
+      .from("resident_overview")
+      .select("*")
+      .order("resident_id", { ascending: true });
+
+    if (error) {
+      console.error("Error loading residents:", error);
+      setResidents([]);
+    } else {
+      setResidents(data || []);
+    }
+
+    setLoading(false);
+  }
 
   return (
     <main className="dashboard-main">
@@ -63,69 +79,115 @@ function Residents({ censusRecords }: ResidentsProps) {
           </div>
 
           <p>
-            {residents.length} registered resident
-            {residents.length !== 1 ? "s" : ""}
+            {loading
+              ? "Loading..."
+              : `${residents.length} registered resident${
+                  residents.length !== 1 ? "s" : ""
+                }`}
           </p>
         </div>
 
         <div className="recent-records">
 
-          {residents.map(
-            (resident: any, index: number) => (
+          {loading ? (
+
+            <div className="recent-record-card">
+              <div className="recent-record-main">
+                <strong>Loading residents...</strong>
+              </div>
+            </div>
+
+          ) : residents.length === 0 ? (
+
+            <div className="recent-record-card">
+              <div className="recent-record-main">
+                <strong>No residents found.</strong>
+
+                <p>
+                  There are currently no residents in the resident overview.
+                </p>
+              </div>
+            </div>
+
+          ) : (
+
+            residents.map((resident) => (
 
               <div
                 className="recent-record-card"
-                key={`${resident.householdNumber}-${index}`}
+                key={resident.resident_id}
               >
 
-                  <div className="recent-record-icon">
-  <UserRound size={22} strokeWidth={1.8} />
-</div>
+                <div className="recent-record-icon">
+                  <UserRound
+                    size={22}
+                    strokeWidth={1.8}
+                  />
+                </div>
 
                 <div className="recent-record-main">
 
                   <div className="recent-record-title">
+
                     <strong>
-                      {resident.firstName}{" "}
-                      {resident.middleName}{" "}
-                      {resident.lastName}
+                      {resident.first_name || ""}
+                      {" "}
+                      {resident.middle_name || ""}
+                      {" "}
+                      {resident.last_name || ""}
+                      {resident.suffix
+                        ? ` ${resident.suffix}`
+                        : ""}
                     </strong>
 
                     <span>
                       {resident.sex || "—"}
                     </span>
+
                   </div>
 
                   <div className="recent-record-location">
 
                     <span>
-                      Family:{" "}
-                      {resident.familyName || "—"}
+                      Relationship:{" "}
+                      {resident.relationship || "—"}
                     </span>
 
                     <span>
-                      Household:{" "}
-                      {resident.householdNumber || "—"}
+                      Resident Type:{" "}
+                      {resident.resident_type || "—"}
                     </span>
 
                     <span>
-                      Occupation:{" "}
-                      {resident.primaryOccupation || "—"}
+                      Civil Status:{" "}
+                      {resident.civil_status || "—"}
                     </span>
 
                   </div>
 
                   <div className="recent-record-stats">
 
-                   <span>
-  <Cake size={16} strokeWidth={1.8} />
-  {resident.birthDate || "—"}
-</span>
+                    <span>
+                      <Cake
+                        size={16}
+                        strokeWidth={1.8}
+                      />
 
-                   <span>
-  <Vote size={16} strokeWidth={1.8} />
-  {resident.voterStatus || "—"}
-</span>
+                      {resident.birth_date || "—"}
+                    </span>
+
+                    <span>
+                      <Vote
+                        size={16}
+                        strokeWidth={1.8}
+                      />
+
+                      {resident.has_own_family === true
+                        ? "Has Own Family"
+                        : resident.has_own_family === false
+                        ? "No Own Family"
+                        : "—"}
+                    </span>
 
                   </div>
 
@@ -133,7 +195,8 @@ function Residents({ censusRecords }: ResidentsProps) {
 
               </div>
 
-            )
+            ))
+
           )}
 
         </div>

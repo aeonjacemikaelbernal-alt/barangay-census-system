@@ -112,7 +112,6 @@ const handleCensusSubmit = async (data: any) => {
       </div>
     );
   }
-
  if (!session) {
   return (
    <Login
@@ -133,9 +132,7 @@ if (page === "residents") {
         onNewCensus={() => setPage("census")}
       />
 
-      <Residents
-        censusRecords={censusRecords}
-      />
+      <Residents />
 
     </div>
   );

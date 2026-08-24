@@ -172,10 +172,7 @@ Back to Dashboard
               return (
 
                 <div
-                  key={
-                    record?.householdNumber ||
-                    index
-                  }
+  key={`${record?.householdNumber || "household"}-${index}`}
                   style={{
                     background: "white",
                     border: "1px solid #e7eaf0",

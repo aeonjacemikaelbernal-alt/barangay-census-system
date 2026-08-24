@@ -640,10 +640,7 @@ console.log("RECENT ACTIVITY DATA:", safeRecords);
 
             <div
               className="recent-record-card"
-              key={
-                record?.householdNumber ||
-                index
-              }
+              key={`${record?.householdNumber || "household"}-${index}`}
             >
 
             <div className="recent-record-icon">
@@ -697,21 +694,7 @@ console.log("RECENT ACTIVITY DATA:", safeRecords);
     gap: "6px",
   }}
 >
-  <UsersRound size={15} strokeWidth={1.8} />
 
-  {families.length} Family
-  {families.length !== 1
-    ? "ies"
-    : ""}
-</span>
-                  
-                  <span
-  style={{
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-  }}
->
   <UsersRound size={15} strokeWidth={1.8} />
 
   {families.length} Family
