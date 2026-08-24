@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./dashboard.css";
-import { UserRound, Cake, Vote } from "lucide-react";
+import { UserRound, Cake, Vote, Search, X } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 type Resident = {
@@ -21,6 +21,15 @@ type Resident = {
 function Residents() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // =========================
+  // SEARCH & FILTER STATES
+  // =========================
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sexFilter, setSexFilter] = useState("");
+  const [civilStatusFilter, setCivilStatusFilter] = useState("");
+  const [residentTypeFilter, setResidentTypeFilter] = useState("");
 
   useEffect(() => {
     loadResidents();
@@ -43,6 +52,64 @@ function Residents() {
 
     setLoading(false);
   }
+
+  // =========================
+  // FILTER RESIDENTS
+  // =========================
+
+  const filteredResidents = residents.filter((resident) => {
+    const fullName = [
+      resident.first_name,
+      resident.middle_name,
+      resident.last_name,
+      resident.suffix,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    const search = searchTerm.trim().toLowerCase();
+
+    const matchesSearch =
+      search === "" ||
+      fullName.includes(search);
+
+    const matchesSex =
+      sexFilter === "" ||
+      resident.sex === sexFilter;
+
+    const matchesCivilStatus =
+      civilStatusFilter === "" ||
+      resident.civil_status === civilStatusFilter;
+
+    const matchesResidentType =
+      residentTypeFilter === "" ||
+      resident.resident_type === residentTypeFilter;
+
+    return (
+      matchesSearch &&
+      matchesSex &&
+      matchesCivilStatus &&
+      matchesResidentType
+    );
+  });
+
+  // =========================
+  // CLEAR FILTERS
+  // =========================
+
+  function clearFilters() {
+    setSearchTerm("");
+    setSexFilter("");
+    setCivilStatusFilter("");
+    setResidentTypeFilter("");
+  }
+
+  const hasActiveFilters =
+    searchTerm !== "" ||
+    sexFilter !== "" ||
+    civilStatusFilter !== "" ||
+    residentTypeFilter !== "";
 
   return (
     <main className="dashboard-main">
@@ -67,6 +134,10 @@ function Residents() {
 
       <section className="dashboard-section">
 
+        {/* =========================
+            SECTION HEADING
+        ========================= */}
+
         <div className="section-heading">
           <div>
             <span>
@@ -81,11 +152,221 @@ function Residents() {
           <p>
             {loading
               ? "Loading..."
-              : `${residents.length} registered resident${
+              : `${filteredResidents.length} of ${
+                  residents.length
+                } resident${
                   residents.length !== 1 ? "s" : ""
                 }`}
           </p>
         </div>
+
+        {/* =========================
+            SEARCH & FILTERS
+        ========================= */}
+
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #e7eaf0",
+            borderRadius: "14px",
+            padding: "20px",
+            marginBottom: "20px",
+          }}
+        >
+
+          {/* SEARCH */}
+
+          <div
+            style={{
+              position: "relative",
+              marginBottom: "16px",
+            }}
+          >
+
+            <Search
+              size={18}
+              strokeWidth={1.8}
+              style={{
+                position: "absolute",
+                left: "14px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "#8993a5",
+              }}
+            />
+
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) =>
+                setSearchTerm(event.target.value)
+              }
+              placeholder="Search resident by name..."
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                border: "1px solid #dfe4eb",
+                borderRadius: "10px",
+                padding: "12px 14px 12px 42px",
+                fontSize: "14px",
+                outline: "none",
+              }}
+            />
+
+          </div>
+
+          {/* FILTERS */}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(3, minmax(0, 1fr))",
+              gap: "12px",
+            }}
+          >
+
+            {/* SEX */}
+
+            <select
+              value={sexFilter}
+              onChange={(event) =>
+                setSexFilter(event.target.value)
+              }
+              style={{
+                border: "1px solid #dfe4eb",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                fontSize: "14px",
+                background: "white",
+              }}
+            >
+              <option value="">
+                All Sex
+              </option>
+
+              <option value="Male">
+                Male
+              </option>
+
+              <option value="Female">
+                Female
+              </option>
+            </select>
+
+            {/* CIVIL STATUS */}
+
+            <select
+              value={civilStatusFilter}
+              onChange={(event) =>
+                setCivilStatusFilter(event.target.value)
+              }
+              style={{
+                border: "1px solid #dfe4eb",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                fontSize: "14px",
+                background: "white",
+              }}
+            >
+              <option value="">
+                All Civil Status
+              </option>
+
+              {Array.from(
+                new Set(
+                  residents
+                    .map(
+                      (resident) =>
+                        resident.civil_status
+                    )
+                    .filter(Boolean)
+                )
+              ).map((status) => (
+                <option
+                  key={status}
+                  value={status || ""}
+                >
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            {/* RESIDENT TYPE */}
+
+            <select
+              value={residentTypeFilter}
+              onChange={(event) =>
+                setResidentTypeFilter(
+                  event.target.value
+                )
+              }
+              style={{
+                border: "1px solid #dfe4eb",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                fontSize: "14px",
+                background: "white",
+              }}
+            >
+              <option value="">
+                All Resident Types
+              </option>
+
+              {Array.from(
+                new Set(
+                  residents
+                    .map(
+                      (resident) =>
+                        resident.resident_type
+                    )
+                    .filter(Boolean)
+                )
+              ).map((type) => (
+                <option
+                  key={type}
+                  value={type || ""}
+                >
+                  {type}
+                </option>
+              ))}
+            </select>
+
+          </div>
+
+          {/* CLEAR */}
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              style={{
+                marginTop: "14px",
+                border: "1px solid #dfe4eb",
+                background: "white",
+                borderRadius: "9px",
+                padding: "9px 14px",
+                cursor: "pointer",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "7px",
+              }}
+            >
+              <X
+                size={15}
+                strokeWidth={1.8}
+              />
+
+              Clear Filters
+            </button>
+          )}
+
+        </div>
+
+        {/* =========================
+            RECORDS
+        ========================= */}
 
         <div className="recent-records">
 
@@ -93,25 +374,51 @@ function Residents() {
 
             <div className="recent-record-card">
               <div className="recent-record-main">
-                <strong>Loading residents...</strong>
+                <strong>
+                  Loading residents...
+                </strong>
               </div>
             </div>
 
-          ) : residents.length === 0 ? (
+          ) : filteredResidents.length === 0 ? (
 
             <div className="recent-record-card">
               <div className="recent-record-main">
-                <strong>No residents found.</strong>
+
+                <strong>
+                  No residents found.
+                </strong>
 
                 <p>
-                  There are currently no residents in the resident overview.
+                  {hasActiveFilters
+                    ? "No residents match the current search or filters."
+                    : "There are currently no residents in the resident overview."}
                 </p>
+
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    style={{
+                      marginTop: "10px",
+                      border: "1px solid #dfe4eb",
+                      background: "white",
+                      borderRadius: "8px",
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Clear Filters
+                  </button>
+                )}
+
               </div>
             </div>
 
           ) : (
 
-            residents.map((resident) => (
+            filteredResidents.map((resident) => (
 
               <div
                 className="recent-record-card"
@@ -119,10 +426,12 @@ function Residents() {
               >
 
                 <div className="recent-record-icon">
+
                   <UserRound
                     size={22}
                     strokeWidth={1.8}
                   />
+
                 </div>
 
                 <div className="recent-record-main">
@@ -130,14 +439,17 @@ function Residents() {
                   <div className="recent-record-title">
 
                     <strong>
+
                       {resident.first_name || ""}
                       {" "}
                       {resident.middle_name || ""}
                       {" "}
                       {resident.last_name || ""}
+
                       {resident.suffix
                         ? ` ${resident.suffix}`
                         : ""}
+
                     </strong>
 
                     <span>
@@ -168,15 +480,18 @@ function Residents() {
                   <div className="recent-record-stats">
 
                     <span>
+
                       <Cake
                         size={16}
                         strokeWidth={1.8}
                       />
 
                       {resident.birth_date || "—"}
+
                     </span>
 
                     <span>
+
                       <Vote
                         size={16}
                         strokeWidth={1.8}
@@ -187,6 +502,7 @@ function Residents() {
                         : resident.has_own_family === false
                         ? "No Own Family"
                         : "—"}
+
                     </span>
 
                   </div>

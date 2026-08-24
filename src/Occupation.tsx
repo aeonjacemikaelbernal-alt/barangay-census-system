@@ -285,6 +285,15 @@ function Occupation({
                       {resident?.employmentStatus || "—"}
                     </p>
 
+                    <p>
+  <strong>
+    Monthly Income:
+  </strong>{" "}
+  {resident?.monthlyIncome
+    ? `₱${Number(resident.monthlyIncome).toLocaleString()}`
+    : "—"}
+</p>
+
                   </div>
 
                 </div>

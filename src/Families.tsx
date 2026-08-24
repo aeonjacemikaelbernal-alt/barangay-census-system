@@ -18,7 +18,10 @@ function Families({
 
  
 
-  const [selectedFamily, setSelectedFamily] =
+ const [selectedFamily, setSelectedFamily] =
+  useState<any | null>(null);
+
+const [selectedResident, setSelectedResident] =
   useState<any | null>(null);
 
   const safeRecords = Array.isArray(censusRecords)
@@ -37,6 +40,390 @@ function Families({
           }))
         : []
   );
+
+  if (selectedResident) {
+  return (
+    <main
+      style={{
+        flex: 1,
+        padding: "34px 42px",
+        background: "#f5f7fb",
+        minHeight: "100vh",
+      }}
+    >
+
+      {/* BACK BUTTON */}
+
+      <button
+        type="button"
+        onClick={() => setSelectedResident(null)}
+        style={{
+          border: "1px solid #dfe4eb",
+          background: "white",
+          borderRadius: "10px",
+          padding: "11px 18px",
+          cursor: "pointer",
+          fontWeight: 600,
+          marginBottom: "25px",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <ArrowLeft
+          size={17}
+          strokeWidth={1.8}
+        />
+
+        Back to Family
+      </button>
+
+
+      {/* HEADER */}
+
+      <div
+        style={{
+          marginBottom: "25px",
+        }}
+      >
+
+        <p
+          style={{
+            margin: "0 0 7px",
+            fontSize: "10px",
+            fontWeight: 700,
+            letterSpacing: "0.13em",
+            color: "#7e8a9f",
+          }}
+        >
+          RESIDENT DETAILS
+        </p>
+
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "32px",
+            color: "#172033",
+          }}
+        >
+          {selectedResident?.fullName ||
+            "Unnamed Resident"}
+        </h1>
+
+        <p
+          style={{
+            margin: "8px 0 0",
+            color: "#758094",
+            fontSize: "14px",
+          }}
+        >
+          Family:{" "}
+          {selectedResident?.familyName ||
+            "Unnamed Family"}
+          {" · "}
+          Household:{" "}
+          {selectedResident?.householdNumber ||
+            "—"}
+        </p>
+
+      </div>
+
+
+      {/* BASIC INFORMATION */}
+
+      <section
+        style={{
+          background: "white",
+          border: "1px solid #e7eaf0",
+          borderRadius: "14px",
+          padding: "28px",
+          marginBottom: "18px",
+        }}
+      >
+
+        <h2
+          style={{
+            margin: "0 0 20px",
+            fontSize: "19px",
+            color: "#172033",
+          }}
+        >
+          Basic Information
+        </h2>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "20px",
+          }}
+        >
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              FULL NAME
+            </span>
+
+            <strong>
+              {selectedResident?.fullName ||
+                "—"}
+            </strong>
+          </div>
+
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              SEX
+            </span>
+
+            <span>
+              {selectedResident?.sex || "—"}
+            </span>
+          </div>
+
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              BIRTH DATE
+            </span>
+
+            <span>
+              {selectedResident?.birthDate || "—"}
+            </span>
+          </div>
+
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              CIVIL STATUS
+            </span>
+
+            <span>
+              {selectedResident?.civilStatus || "—"}
+            </span>
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* EMPLOYMENT INFORMATION */}
+
+      <section
+        style={{
+          background: "white",
+          border: "1px solid #e7eaf0",
+          borderRadius: "14px",
+          padding: "28px",
+          marginBottom: "18px",
+        }}
+      >
+
+        <h2
+          style={{
+            margin: "0 0 20px",
+            fontSize: "19px",
+            color: "#172033",
+          }}
+        >
+          Employment Information
+        </h2>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "20px",
+          }}
+        >
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              OCCUPATION
+            </span>
+
+            <span>
+              {selectedResident?.primaryOccupation ||
+                selectedResident?.occupation ||
+                "—"}
+            </span>
+          </div>
+
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              EMPLOYMENT STATUS
+            </span>
+
+            <span>
+              {selectedResident?.employmentStatus ||
+                "—"}
+            </span>
+          </div>
+
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              MONTHLY INCOME
+            </span>
+
+            <span>
+              {selectedResident?.monthlyIncome
+                ? `₱${selectedResident.monthlyIncome}`
+                : "—"}
+            </span>
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* OTHER INFORMATION */}
+
+      <section
+        style={{
+          background: "white",
+          border: "1px solid #e7eaf0",
+          borderRadius: "14px",
+          padding: "28px",
+        }}
+      >
+
+        <h2
+          style={{
+            margin: "0 0 20px",
+            fontSize: "19px",
+            color: "#172033",
+          }}
+        >
+          Other Information
+        </h2>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "20px",
+          }}
+        >
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              VOTER STATUS
+            </span>
+
+            <span>
+              {selectedResident?.voterStatus ||
+                "—"}
+            </span>
+          </div>
+
+
+          <div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "#8993a5",
+                letterSpacing: "0.08em",
+                marginBottom: "5px",
+              }}
+            >
+              4Ps MEMBER
+            </span>
+
+            <span>
+              {selectedResident?.fourPsMember ||
+                "—"}
+            </span>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+  );
+}
+
 if (selectedFamily) {
   const members = Array.isArray(
     selectedFamily?.members
@@ -523,16 +910,14 @@ if (selectedFamily) {
   onClick={(event) => {
   event.stopPropagation();
 
-  console.log("RESIDENT DETAILS:", {
-    name: fullName || "Unnamed Resident",
-    sex: member?.sex || "—",
-    civilStatus: member?.civilStatus || "—",
-    birthDate: member?.birthDate || "—",
-    occupation: member?.primaryOccupation || "—",
-    employment: member?.employmentStatus || "—",
-    monthlyIncome: member?.monthlyIncome || "—",
-    voterStatus: member?.voterStatus || "—",
-    fourPsMember: member?.fourPsMember || "—",
+  setSelectedResident({
+    ...member,
+    fullName:
+      fullName || "Unnamed Resident",
+    familyName:
+      family?.familyName || "Unnamed Family",
+    householdNumber:
+      family?.householdNumber || "—",
   });
 }}
   style={{

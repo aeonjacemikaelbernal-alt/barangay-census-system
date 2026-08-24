@@ -10,6 +10,8 @@ import {
   Wrench,
   WalletCards,
   Vote,
+  Settings,
+  HeartHandshake,
   Plus,
   Menu,
   X,
@@ -25,6 +27,8 @@ export type Page =
   | "skills"
   | "income"
   | "voters"
+  | "fourPs"
+  | "settings"
   | "census";
 
 type SidebarProps = {
@@ -216,6 +220,41 @@ function Sidebar({
     Voters
   </span>
         </button>
+
+        <button
+  type="button"
+  className={`nav-item ${
+    page === "settings" ? "active" : ""
+  }`}
+  onClick={() => handleNavigate("settings")}
+>
+  <span>
+    <Settings size={18} strokeWidth={1.8} />
+  </span>
+
+  <span className="nav-text">
+    Settings
+  </span>
+</button>
+
+<button
+  type="button"
+  className={`nav-item ${
+    page === "fourPs" ? "active" : ""
+  }`}
+  onClick={() => handleNavigate("fourPs")}
+>
+  <span>
+    <HeartHandshake
+      size={18}
+      strokeWidth={1.8}
+    />
+  </span>
+
+  <span className="nav-text">
+    4Ps
+  </span>
+</button>
 
       </nav>
 

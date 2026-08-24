@@ -1,14 +1,25 @@
-import { GraduationCap, ArrowLeft } from "lucide-react";
+import { useState } from "react";
 
-type EducationProps = {
+
+import {
+  HeartHandshake,
+  ArrowLeft,
+  UserRound,
+    Search,
+
+} from "lucide-react";
+
+type FourPsProps = {
   censusRecords: any[];
   onBackToDashboard: () => void;
 };
 
-function Education({
+function FourPs({
   censusRecords,
   onBackToDashboard,
-}: EducationProps) {
+}: FourPsProps) {
+
+      const [searchTerm, setSearchTerm] = useState("");
 
   const safeRecords = Array.isArray(censusRecords)
     ? censusRecords.filter(Boolean)
@@ -36,31 +47,65 @@ function Education({
     }
   );
 
-  // =====================================================
-  // EDUCATION COUNTS
-  // =====================================================
+  const isFourPsMember = (member: any) => {
+    const value = String(
+      member?.fourPsMember || ""
+    )
+      .trim()
+      .toLowerCase();
 
-  const educationCounts: Record<string, number> = {};
+    return (
+      value === "yes" ||
+      value === "member" ||
+      value === "4ps member" ||
+      value === "4ps"
+    );
+  };
 
-  allResidents.forEach((resident: any) => {
+  const fourPsMembers = allResidents.filter(
+    (resident: any) =>
+      isFourPsMember(resident)
+  );
 
-    const education =
-      resident?.education ||
-      resident?.educationalAttainment ||
-      resident?.highestEducation;
+  const notFourPsMembers = allResidents.filter(
+    (resident: any) =>
+      !isFourPsMember(resident)
+  );
 
-    const label = String(
-      education || "Not Specified"
-    ).trim();
+    const filteredFourPsMembers = fourPsMembers.filter(
+    (resident: any) => {
+      const fullName = [
+        resident?.firstName,
+        resident?.middleName,
+        resident?.lastName,
+        resident?.suffix,
+      ]
+        .filter(Boolean)
+        .join(" ");
 
-    educationCounts[label] =
-      (educationCounts[label] || 0) + 1;
-  });
+      const search = searchTerm
+        .trim()
+        .toLowerCase();
 
-  const educationSummary = Object.entries(
-    educationCounts
-  ).sort((a, b) => b[1] - a[1]);
+      if (!search) {
+        return true;
+      }
 
+      return (
+        fullName.toLowerCase().includes(search) ||
+        String(
+          resident?.familyName || ""
+        )
+          .toLowerCase()
+          .includes(search) ||
+        String(
+          resident?.householdNumber || ""
+        )
+          .toLowerCase()
+          .includes(search)
+      );
+    }
+  );
 
   return (
     <main
@@ -72,9 +117,7 @@ function Education({
       }}
     >
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <div
         style={{
@@ -96,7 +139,7 @@ function Education({
               color: "#7e8a9f",
             }}
           >
-            BARANGAY MANAGEMENT SYSTEM
+            DATA CATEGORY
           </p>
 
           <h1
@@ -106,7 +149,7 @@ function Education({
               color: "#172033",
             }}
           >
-            Education
+            4Ps
           </h1>
 
           <p
@@ -116,12 +159,11 @@ function Education({
               fontSize: "14px",
             }}
           >
-            View educational information of all
-            registered residents.
+            View residents registered as members of
+            the Pantawid Pamilyang Pilipino Program.
           </p>
 
         </div>
-
 
         <button
           type="button"
@@ -138,143 +180,35 @@ function Education({
             gap: "8px",
           }}
         >
-
           <ArrowLeft
             size={16}
             strokeWidth={1.8}
           />
 
           Back to Dashboard
-
         </button>
 
       </div>
 
 
-      {/* =================================================
-          SUMMARY
-      ================================================= */}
+      {/* SUMMARY */}
 
-      <section
+      <div
         style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(2, minmax(0, 1fr))",
+          gap: "16px",
           marginBottom: "28px",
         }}
       >
 
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "16px",
-          }}
-        >
-
-          <div
-            style={{
-              background: "white",
-              border: "1px solid #e7eaf0",
-              borderRadius: "14px",
-              padding: "22px",
-            }}
-          >
-
-            <span
-              style={{
-                display: "block",
-                fontSize: "10px",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                color: "#7e8a9f",
-                marginBottom: "8px",
-              }}
-            >
-              TOTAL RESIDENTS
-            </span>
-
-            <strong
-              style={{
-                fontSize: "28px",
-                color: "#172033",
-              }}
-            >
-              {allResidents.length}
-            </strong>
-
-            <small
-              style={{
-                display: "block",
-                marginTop: "5px",
-                color: "#758094",
-              }}
-            >
-              Registered residents
-            </small>
-
-          </div>
-
-
-          <div
-            style={{
-              background: "white",
-              border: "1px solid #e7eaf0",
-              borderRadius: "14px",
-              padding: "22px",
-            }}
-          >
-
-            <span
-              style={{
-                display: "block",
-                fontSize: "10px",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                color: "#7e8a9f",
-                marginBottom: "8px",
-              }}
-            >
-              EDUCATION LEVELS
-            </span>
-
-            <strong
-              style={{
-                fontSize: "28px",
-                color: "#172033",
-              }}
-            >
-              {educationSummary.length}
-            </strong>
-
-            <small
-              style={{
-                display: "block",
-                marginTop: "5px",
-                color: "#758094",
-              }}
-            >
-              Recorded categories
-            </small>
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      {/* =================================================
-          EDUCATION DISTRIBUTION
-      ================================================= */}
-
-      {educationSummary.length > 0 && (
-
-        <section
-          style={{
             background: "white",
             border: "1px solid #e7eaf0",
             borderRadius: "14px",
-            padding: "24px",
-            marginBottom: "28px",
+            padding: "22px",
           }}
         >
 
@@ -282,117 +216,110 @@ function Education({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "9px",
-              marginBottom: "20px",
+              gap: "8px",
+              marginBottom: "8px",
             }}
           >
 
-            <GraduationCap
-              size={20}
+            <HeartHandshake
+              size={19}
               strokeWidth={1.8}
             />
 
-            <h2
+            <span
               style={{
-                margin: 0,
-                color: "#172033",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "#168aad",
               }}
             >
-              Educational Attainment
-            </h2>
+              4PS MEMBERS
+            </span>
 
           </div>
 
+          <strong
+            style={{
+              display: "block",
+              fontSize: "28px",
+              color: "#172033",
+            }}
+          >
+            {fourPsMembers.length}
+          </strong>
+
+          <small
+            style={{
+              color: "#758094",
+            }}
+          >
+            Registered 4Ps members
+          </small>
+
+        </div>
+
+
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #e7eaf0",
+            borderRadius: "14px",
+            padding: "22px",
+          }}
+        >
 
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              gap: "14px",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "8px",
             }}
           >
 
-            {educationSummary.map(
-              ([label, count]) => {
+            <UserRound
+              size={19}
+              strokeWidth={1.8}
+            />
 
-                const maxCount =
-                  educationSummary[0][1];
-
-                const percentage =
-                  maxCount > 0
-                    ? (count / maxCount) * 100
-                    : 0;
-
-                return (
-
-                  <div key={label}>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent:
-                          "space-between",
-                        marginBottom: "6px",
-                      }}
-                    >
-
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          color: "#172033",
-                        }}
-                      >
-                        {label}
-                      </span>
-
-                      <strong
-                        style={{
-                          fontSize: "13px",
-                          color: "#172033",
-                        }}
-                      >
-                        {count}
-                      </strong>
-
-                    </div>
-
-
-                    <div
-                      style={{
-                        height: "8px",
-                        background: "#edf0f5",
-                        borderRadius: "999px",
-                        overflow: "hidden",
-                      }}
-                    >
-
-                      <div
-                        style={{
-                          width: `${percentage}%`,
-                          height: "100%",
-                          background: "#4361ee",
-                          borderRadius: "999px",
-                        }}
-                      />
-
-                    </div>
-
-                  </div>
-
-                );
-              }
-            )}
+            <span
+              style={{
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "#7e8a9f",
+              }}
+            >
+              NOT 4PS
+            </span>
 
           </div>
 
-        </section>
+          <strong
+            style={{
+              display: "block",
+              fontSize: "28px",
+              color: "#172033",
+            }}
+          >
+            {notFourPsMembers.length}
+          </strong>
 
-      )}
+          <small
+            style={{
+              color: "#758094",
+            }}
+          >
+            Residents not registered
+          </small>
+
+        </div>
+
+      </div>
 
 
-      {/* =================================================
-          RESIDENT EDUCATION RECORDS
-      ================================================= */}
+      {/* RECORDS */}
 
       <section>
 
@@ -417,7 +344,7 @@ function Education({
                 marginBottom: "4px",
               }}
             >
-              EDUCATION RECORDS
+              4PS RECORDS
             </span>
 
             <h2
@@ -426,10 +353,48 @@ function Education({
                 color: "#172033",
               }}
             >
-              Resident Education Information
+              4Ps Member Information
             </h2>
 
           </div>
+
+        <div
+          style={{
+            position: "relative",
+            width: "280px",
+          }}
+        >
+          <Search
+            size={17}
+            strokeWidth={1.8}
+            style={{
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#8993a5",
+            }}
+          />
+
+          <input
+            type="text"
+            placeholder="Search resident..."
+            value={searchTerm}
+            onChange={(event) =>
+              setSearchTerm(event.target.value)
+            }
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              border: "1px solid #dfe4eb",
+              borderRadius: "10px",
+              padding: "11px 12px 11px 38px",
+              outline: "none",
+              fontSize: "13px",
+              background: "white",
+            }}
+          />
+        </div>
 
           <span
             style={{
@@ -437,8 +402,8 @@ function Education({
               fontSize: "13px",
             }}
           >
-            {allResidents.length} resident
-            {allResidents.length !== 1
+            {fourPsMembers.length} member
+            {fourPsMembers.length !== 1
               ? "s"
               : ""}
           </span>
@@ -446,8 +411,8 @@ function Education({
         </div>
 
 
-        {allResidents.length === 0 ? (
-
+{filteredFourPsMembers.length === 0 ? (
+    
           <div
             style={{
               background: "white",
@@ -458,19 +423,26 @@ function Education({
             }}
           >
 
-            <GraduationCap
+            <HeartHandshake
               size={34}
               strokeWidth={1.5}
             />
 
             <h3>
-              No education records yet
-            </h3>
+  {searchTerm
+    ? "No matching resident found"
+    : "No 4Ps members yet"}
+</h3>
 
-            <p>
-              Education information will appear here
-              after a census is submitted.
-            </p>
+<p
+  style={{
+    color: "#758094",
+  }}
+>
+  {searchTerm
+    ? "Try searching using another resident, family, or household."
+    : "4Ps member information will appear here after a census is submitted."}
+</p>
 
           </div>
 
@@ -485,7 +457,8 @@ function Education({
             }}
           >
 
-            {allResidents.map(
+           {filteredFourPsMembers.map(
+
               (
                 resident: any,
                 index: number
@@ -499,12 +472,6 @@ function Education({
                 ]
                   .filter(Boolean)
                   .join(" ");
-
-                const education =
-                  resident?.education ||
-                  resident?.educationalAttainment ||
-                  resident?.highestEducation ||
-                  "Not Specified";
 
                 return (
 
@@ -542,13 +509,12 @@ function Education({
                         }}
                       >
 
-                        <GraduationCap
+                        <HeartHandshake
                           size={21}
                           strokeWidth={1.8}
                         />
 
                       </div>
-
 
                       <div>
 
@@ -562,7 +528,7 @@ function Education({
                             color: "#8993a5",
                           }}
                         >
-                          EDUCATION RECORD
+                          4PS MEMBER
                         </span>
 
                         <span
@@ -571,7 +537,7 @@ function Education({
                             color: "#758094",
                           }}
                         >
-                          Resident information
+                          Registered resident
                         </span>
 
                       </div>
@@ -592,8 +558,7 @@ function Education({
 
                     <p
                       style={{
-                        margin:
-                          "0 0 18px",
+                        margin: "0 0 18px",
                         color: "#8993a5",
                         fontSize: "12px",
                       }}
@@ -616,64 +581,32 @@ function Education({
 
                       <p>
                         <strong>
-                          Education:
+                          4Ps Status:
                         </strong>{" "}
-                        {education}
-                      </p>
-
-                      <p>
-                        <strong>
-                          School Status:
-                        </strong>{" "}
-                        {resident?.schoolStatus ||
+                        {resident?.fourPsMember ||
                           "—"}
                       </p>
 
                       <p>
                         <strong>
-                          School Level:
+                          Sex:
                         </strong>{" "}
-                        {resident?.schoolLevel ||
+                        {resident?.sex || "—"}
+                      </p>
+
+                      <p>
+                        <strong>
+                          Civil Status:
+                        </strong>{" "}
+                        {resident?.civilStatus ||
                           "—"}
                       </p>
 
                       <p>
                         <strong>
-                          Elementary School:
+                          Birth Date:
                         </strong>{" "}
-                        {resident?.elementarySchool ||
-                          "—"}
-                      </p>
-
-                      <p>
-                        <strong>
-                          Junior High School:
-                        </strong>{" "}
-                        {resident?.juniorHighSchool ||
-                          "—"}
-                      </p>
-
-                      <p>
-                        <strong>
-                          Senior High School:
-                        </strong>{" "}
-                        {resident?.seniorHighSchool ||
-                          "—"}
-                      </p>
-
-                      <p>
-                        <strong>
-                          College / University:
-                        </strong>{" "}
-                        {resident?.collegeUniversity ||
-                          "—"}
-                      </p>
-
-                      <p>
-                        <strong>
-                          Course:
-                        </strong>{" "}
-                        {resident?.course ||
+                        {resident?.birthDate ||
                           "—"}
                       </p>
 
@@ -695,4 +628,4 @@ function Education({
   );
 }
 
-export default Education;
+export default FourPs;

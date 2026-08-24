@@ -11,8 +11,10 @@ import Occupation from "./Occupation";
 import Skills from "./Skills";
 import Income from "./Income";
 import Voters from "./Voters";
+import FourPs from "./FourPs";
 import Sidebar from "./Sidebar";
 import Login from "./Login";
+import Settings from "./Settings";
 
 import type { Page } from "./Sidebar";import {
   getCensusRecords,
@@ -57,6 +59,10 @@ function App() {
 const [censusRecords, setCensusRecords] = useState<any[]>([]);
 
 useEffect(() => {
+  if (!session) {
+    return;
+  }
+
   const loadCensusRecords = async () => {
     const records = await getCensusRecords();
 
@@ -66,7 +72,7 @@ useEffect(() => {
   };
 
   loadCensusRecords();
-}, []);
+}, [session]);
 
 const handleCensusSubmit = async (data: any) => {
   console.log("RECEIVED CENSUS DATA IN APP:", data);
@@ -152,6 +158,23 @@ if (page === "families") {
         onBackToDashboard={() => setPage("dashboard")}
       />
 
+    </div>
+  );
+}
+
+if (page === "fourPs") {
+  return (
+    <div className="dashboard-page">
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <FourPs
+        censusRecords={censusRecords}
+        onBackToDashboard={() => setPage("dashboard")}
+      />
     </div>
   );
 }
@@ -261,6 +284,51 @@ if (page === "voters") {
     </div>
   );
 }
+
+if (page === "settings") {
+  
+  return (
+    <div className="dashboard-page">
+
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+      />
+
+      <Settings
+        email={session?.user?.email}
+        onBackToDashboard={() =>
+          setPage("dashboard")
+        }
+        onRefreshData={async () => {
+          const records = await getCensusRecords();
+
+          setCensusRecords(
+            records.map((record) => record.data)
+          );
+        }}
+        onLogout={async () => {
+          const { error } =
+            await supabase.auth.signOut();
+
+          if (error) {
+            console.error(
+              "LOGOUT FAILED:",
+              error
+            );
+            return;
+          }
+
+          setPage("dashboard");
+        }}
+      />
+
+    </div>
+  );
+}
+
+
 
   if (page === "census") {
     return (

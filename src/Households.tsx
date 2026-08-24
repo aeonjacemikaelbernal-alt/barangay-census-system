@@ -19,6 +19,53 @@ function Households({
     ? censusRecords.filter(Boolean)
     : [];
 
+  // =========================
+  // TOTAL FAMILIES
+  // =========================
+
+  const totalFamilies = safeRecords.reduce(
+    (total: number, record: any) => {
+      const families = Array.isArray(record?.families)
+        ? record.families
+        : [];
+
+      return total + families.length;
+    },
+    0
+  );
+
+  // =========================
+  // TOTAL RESIDENTS
+  // =========================
+
+  const totalResidents = safeRecords.reduce(
+    (total: number, record: any) => {
+      const families = Array.isArray(record?.families)
+        ? record.families
+        : [];
+
+      return (
+        total +
+        families.reduce(
+          (
+            familyTotal: number,
+            family: any
+          ) => {
+            const members = Array.isArray(
+              family?.members
+            )
+              ? family.members
+              : [];
+
+            return familyTotal + members.length;
+          },
+          0
+        )
+      );
+    },
+    0
+  );
+
   return (
     <main
       style={{
@@ -28,6 +75,10 @@ function Households({
         minHeight: "100vh",
       }}
     >
+
+      {/* =========================
+          HEADER
+      ========================= */}
 
       <div
         style={{
@@ -39,6 +90,7 @@ function Households({
       >
 
         <div>
+
           <p
             style={{
               margin: "0 0 7px",
@@ -70,27 +122,204 @@ function Households({
           >
             View all registered household census records.
           </p>
+
         </div>
 
         <button
-  onClick={onBackToDashboard}
-  style={{
-    border: "1px solid #dfe4eb",
-    background: "white",
-    borderRadius: "10px",
-    padding: "11px 18px",
-    cursor: "pointer",
-    fontWeight: 600,
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  }}
->
-         <ArrowLeft size={17} strokeWidth={1.8} />
-Back to Dashboard
+          type="button"
+          onClick={onBackToDashboard}
+          style={{
+            border: "1px solid #dfe4eb",
+            background: "white",
+            borderRadius: "10px",
+            padding: "11px 18px",
+            cursor: "pointer",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <ArrowLeft
+            size={17}
+            strokeWidth={1.8}
+          />
+
+          Back to Dashboard
         </button>
 
       </div>
+
+
+      {/* =========================
+          HOUSEHOLD SUMMARY
+      ========================= */}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(3, minmax(0, 1fr))",
+          gap: "18px",
+          marginBottom: "22px",
+        }}
+      >
+
+        {/* TOTAL HOUSEHOLDS */}
+
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #e7eaf0",
+            borderRadius: "14px",
+            padding: "24px",
+          }}
+        >
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "9px",
+              marginBottom: "12px",
+            }}
+          >
+
+            <House
+              size={20}
+              strokeWidth={1.8}
+            />
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "#7e8a9f",
+              }}
+            >
+              TOTAL HOUSEHOLDS
+            </span>
+
+          </div>
+
+          <strong
+            style={{
+              fontSize: "28px",
+              color: "#172033",
+            }}
+          >
+            {safeRecords.length}
+          </strong>
+
+        </div>
+
+
+        {/* TOTAL FAMILIES */}
+
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #e7eaf0",
+            borderRadius: "14px",
+            padding: "24px",
+          }}
+        >
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "9px",
+              marginBottom: "12px",
+            }}
+          >
+
+            <UsersRound
+              size={20}
+              strokeWidth={1.8}
+            />
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "#7e8a9f",
+              }}
+            >
+              TOTAL FAMILIES
+            </span>
+
+          </div>
+
+          <strong
+            style={{
+              fontSize: "28px",
+              color: "#172033",
+            }}
+          >
+            {totalFamilies}
+          </strong>
+
+        </div>
+
+
+        {/* TOTAL RESIDENTS */}
+
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #e7eaf0",
+            borderRadius: "14px",
+            padding: "24px",
+          }}
+        >
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "9px",
+              marginBottom: "12px",
+            }}
+          >
+
+            <Users
+              size={20}
+              strokeWidth={1.8}
+            />
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "#7e8a9f",
+              }}
+            >
+              TOTAL RESIDENTS
+            </span>
+
+          </div>
+
+          <strong
+            style={{
+              fontSize: "28px",
+              color: "#172033",
+            }}
+          >
+            {totalResidents}
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      {/* =========================
+          TOTAL HOUSEHOLDS LABEL
+      ========================= */}
 
       <div
         style={{
@@ -105,6 +334,11 @@ Back to Dashboard
         </strong>
       </div>
 
+
+      {/* =========================
+          HOUSEHOLD RECORDS
+      ========================= */}
+
       {safeRecords.length === 0 ? (
 
         <div
@@ -116,6 +350,7 @@ Back to Dashboard
             textAlign: "center",
           }}
         >
+
           <h3>
             No household records yet
           </h3>
@@ -138,7 +373,10 @@ Back to Dashboard
         >
 
           {safeRecords.map(
-            (record: any, index: number) => {
+            (
+              record: any,
+              index: number
+            ) => {
 
               const household =
                 record?.household || {};
@@ -163,7 +401,8 @@ Back to Dashboard
                         : [];
 
                     return (
-                      total + members.length
+                      total +
+                      members.length
                     );
                   },
                   0
@@ -172,7 +411,7 @@ Back to Dashboard
               return (
 
                 <div
-  key={`${record?.householdNumber || "household"}-${index}`}
+                  key={`${record?.householdNumber || "household"}-${index}`}
                   style={{
                     background: "white",
                     border: "1px solid #e7eaf0",
@@ -180,6 +419,8 @@ Back to Dashboard
                     padding: "22px",
                   }}
                 >
+
+                  {/* CARD HEADER */}
 
                   <div
                     style={{
@@ -190,19 +431,24 @@ Back to Dashboard
                     }}
                   >
 
-                   <div
-  style={{
-    width: "45px",
-    height: "45px",
-    borderRadius: "11px",
-    background: "#f0f4f9",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  }}
->
-  <House size={22} strokeWidth={1.8} />
-</div>
+                    <div
+                      style={{
+                        width: "45px",
+                        height: "45px",
+                        borderRadius: "11px",
+                        background: "#f0f4f9",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+
+                      <House
+                        size={22}
+                        strokeWidth={1.8}
+                      />
+
+                    </div>
 
                     <div>
 
@@ -228,6 +474,9 @@ Back to Dashboard
                     </div>
 
                   </div>
+
+
+                  {/* HOUSEHOLD INFORMATION */}
 
                   <div
                     style={{
@@ -271,6 +520,9 @@ Back to Dashboard
 
                   </div>
 
+
+                  {/* FAMILY / RESIDENT TOTAL */}
+
                   <div
                     style={{
                       display: "flex",
@@ -283,39 +535,50 @@ Back to Dashboard
                   >
 
                     <span
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-  }}
->
-  <UsersRound size={16} strokeWidth={1.8} />
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
 
-  <strong>
-    {families.length}
-  </strong>{" "}
-  Family
+                      <UsersRound
+                        size={16}
+                        strokeWidth={1.8}
+                      />
+
+                      <strong>
+                        {families.length}
+                      </strong>{" "}
+                      Family
                       {families.length !== 1
                         ? "ies"
                         : ""}
+
                     </span>
 
-                    <span
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-  }}
->
-  <Users size={16} strokeWidth={1.8} />
 
-  <strong>
-    {residents}
-  </strong>{" "}
-  Resident
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+
+                      <Users
+                        size={16}
+                        strokeWidth={1.8}
+                      />
+
+                      <strong>
+                        {residents}
+                      </strong>{" "}
+                      Resident
                       {residents !== 1
                         ? "s"
                         : ""}
+
                     </span>
 
                   </div>
