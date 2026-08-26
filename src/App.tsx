@@ -30,6 +30,9 @@ import { supabase } from "./supabaseClient";
 function App() {
   const [page, setPage] = useState<Page>("dashboard");
 
+  const [sidebarCollapsed, setSidebarCollapsed] =
+  useState(true);
+
   const censusSavingRef = useRef(false);
 
     const [session, setSession] = useState<Session | null>(null);
@@ -144,209 +147,98 @@ const handleCensusSubmit = async (
   );
 }
 
+let pageContent;
+
 if (page === "residents") {
-  return (
-    <div className="dashboard-page">
+  pageContent = (
+    <Residents censusRecords={censusData} />
+  );
+} else if (page === "households") {
+  pageContent = (
+    <Households
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "families") {
+  pageContent = (
+    <Families
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "education") {
+  pageContent = (
+    <Education
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "occupation") {
+  pageContent = (
+    <Occupation
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "skills") {
+  pageContent = (
+    <Skills
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "income") {
+  pageContent = (
+    <Income
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "voters") {
+  pageContent = (
+    <Voters
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "fourPs") {
+  pageContent = (
+    <FourPs
+      censusRecords={censusData}
+      onBackToDashboard={() => setPage("dashboard")}
+    />
+  );
+} else if (page === "settings") {
+  pageContent = (
+    <Settings
+      email={session?.user?.email}
+      onBackToDashboard={() =>
+        setPage("dashboard")
+      }
+      onRefreshData={async () => {
+        const records =
+          await getCensusRecords();
 
-      <Sidebar
-        page={page}
-        onNavigate={(nextPage) =>
-          setPage(nextPage as Page)
+        setCensusRecords(records);
+      }}
+      onLogout={async () => {
+        const { error } =
+          await supabase.auth.signOut();
+
+        if (error) {
+          console.error(
+            "LOGOUT FAILED:",
+            error
+          );
+          return;
         }
-        onNewCensus={() => setPage("census")}
-      />
 
-      <Residents
-       censusRecords={censusData}
-      />
-
-    </div>
+        setPage("dashboard");
+      }}
+    />
   );
 }
-if (page === "families") {
-  return (
-    <div className="dashboard-page">
-
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Families
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-
-    </div>
-  );
-}
-
-if (page === "fourPs") {
-  return (
-    <div className="dashboard-page">
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <FourPs
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-    </div>
-  );
-}
-
-if (page === "households") {
-  return (
-    <div className="dashboard-page">
-
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Households
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-
-    </div>
-  );
-}
-
-if (page === "education") {
-  return (
-    <div className="dashboard-page">
-
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Education
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-
-    </div>
-  );
-}
-
-if (page === "occupation") {
-  return (
-    <div className="dashboard-page">
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Occupation
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-    </div>
-  );
-}
-
-if (page === "skills") {
-  return (
-    <div className="dashboard-page">
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Skills
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-    </div>
-  );
-}
-
-if (page === "income") {
-  return (
-    <div className="dashboard-page">
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Income
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-    </div>
-  );
-}
-
-if (page === "voters") {
-  return (
-    <div className="dashboard-page">
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Voters
-       censusRecords={censusData}
-        onBackToDashboard={() => setPage("dashboard")}
-      />
-    </div>
-  );
-}
-
-if (page === "settings") {
-  
-  return (
-    <div className="dashboard-page">
-
-      <Sidebar
-        page={page}
-        onNavigate={setPage}
-        onNewCensus={() => setPage("census")}
-      />
-
-      <Settings
-        email={session?.user?.email}
-        onBackToDashboard={() =>
-          setPage("dashboard")
-        }
-        onRefreshData={async () => {
-          const records = await getCensusRecords();
-
-         setCensusRecords(records);
-        }}
-        onLogout={async () => {
-          const { error } =
-            await supabase.auth.signOut();
-
-          if (error) {
-            console.error(
-              "LOGOUT FAILED:",
-              error
-            );
-            return;
-          }
-
-          setPage("dashboard");
-        }}
-      />
-
-    </div>
-  );
-}
-
-
 
   if (page === "census") {
     return (
@@ -383,15 +275,38 @@ if (page === "settings") {
     );
   }
 
- return (
-  <MainDashboard
-    onNewCensus={() => setPage("census")}
-    onNavigate={(nextPage) => {
-      setPage(nextPage);
-    }}
-   censusRecords={censusData}
-  />
-);
+  if (page === "dashboard") {
+  return (
+    <MainDashboard
+      onNewCensus={() => setPage("census")}
+      onNavigate={(nextPage) =>
+        setPage(nextPage)
+      }
+      censusRecords={censusData}
+      sidebarCollapsed={sidebarCollapsed}
+      onSidebarCollapsedChange={
+        setSidebarCollapsed
+      }
+    />
+  );
 }
 
+return (
+  <div className="dashboard-page">
+    <Sidebar
+      page={page}
+      onNavigate={setPage}
+      onNewCensus={() =>
+        setPage("census")
+      }
+      collapsed={sidebarCollapsed}
+      onCollapsedChange={
+        setSidebarCollapsed
+      }
+    />
+
+    {pageContent}
+  </div>
+);
+}
 export default App;

@@ -42,15 +42,17 @@ type SidebarProps = {
   page: Page;
   onNavigate: (page: Page) => void;
   onNewCensus: () => void;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 };
 
 function Sidebar({
   page,
   onNavigate,
   onNewCensus,
+  collapsed,
+  onCollapsedChange,
 }: SidebarProps) {
-
-  const [collapsed, setCollapsed] = useState(true);
 
 const [censusOpen, setCensusOpen] = useState(false);
 const [dataOpen, setDataOpen] = useState(false);
@@ -103,7 +105,7 @@ const handleGroupClick = (
   group: "census" | "data" | "social"
 ) => {
   if (collapsed) {
-    setCollapsed(false);
+    onCollapsedChange(false);
 
     if (group === "census") {
       setCensusOpen(true);
@@ -162,7 +164,9 @@ const handleGroupClick = (
   <button
     type="button"
     className="sidebar-toggle"
-    onClick={() => setCollapsed((current) => !current)}
+    onClick={() =>
+  onCollapsedChange(!collapsed)
+}
     aria-label={
       collapsed
         ? "Expand sidebar"
