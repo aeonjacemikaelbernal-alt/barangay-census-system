@@ -7,9 +7,25 @@ import {
   Filter,
 } from "lucide-react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
 type VotersProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
+};
+
+type VoterResident = Resident & {
+  familyName: string;
+  householdNumber: string;
+};
+
+type VoterRecord = {
+  member: VoterResident;
+  status: "Registered Voter" | "Not Registered";
 };
 
 function Voters({
@@ -25,53 +41,36 @@ function Voters({
     ? censusRecords.filter(Boolean)
     : [];
 
-  const allFamilies = safeRecords.flatMap(
-    (record: any) =>
-      Array.isArray(record?.families)
-        ? record.families
-        : []
-  );
-
-  const allMembers = allFamilies.flatMap(
-    (family: any) =>
-      Array.isArray(family?.members)
-        ? family.members.map((member: any) => ({
-            ...member,
-            familyName:
-              family?.familyName || "Unnamed Family",
-            householdNumber:
-              recordHouseholdNumber(
-                safeRecords,
-                member
-              ),
-          }))
-        : []
-  );
-
-  function recordHouseholdNumber(
-    records: any[],
-    member: any
-  ) {
-    for (const record of records) {
-      const families = Array.isArray(record?.families)
+ const allMembers: VoterResident[] =
+  safeRecords.flatMap(
+    (record: CensusData) => {
+      const families = Array.isArray(record.families)
         ? record.families
         : [];
 
-      for (const family of families) {
-        const members = Array.isArray(family?.members)
-          ? family.members
-          : [];
+      return families.flatMap(
+        (family: Family) => {
+          const members = Array.isArray(family.members)
+            ? family.members
+            : [];
 
-        if (members.includes(member)) {
-          return record?.householdNumber || "—";
+          return members.map(
+            (member: Resident) => ({
+              ...member,
+              familyName:
+                family.familyName || "Unnamed Family",
+              householdNumber:
+                record.householdNumber || "—",
+            })
+          );
         }
-      }
+      );
     }
+  );
 
-    return "—";
-  }
-
-  const isRegisteredVoter = (member: any) => {
+  const isRegisteredVoter = (
+  member: VoterResident
+) => {
     const voterStatus = String(
       member?.voterStatus || ""
     )
@@ -85,15 +84,17 @@ function Voters({
   };
 
   const registeredVoters = allMembers.filter(
-    (member: any) => isRegisteredVoter(member)
+    (member: VoterResident) =>
+  isRegisteredVoter(member)
   );
 
   const notRegisteredVoters = allMembers.filter(
     (member: any) => !isRegisteredVoter(member)
   );
 
-  const getFullName = (member: any) =>
-    member?.fullName ||
+  const getFullName = (
+  member: VoterResident
+) =>
     [
       member?.firstName,
       member?.middleName,
@@ -104,8 +105,9 @@ function Voters({
       .join(" ") ||
     "Unnamed Resident";
 
-  const voterRecords = allMembers.map(
-    (member: any) => ({
+  const voterRecords: VoterRecord[] =
+  allMembers.map(
+    (member: VoterResident) => ({
       member,
       status: isRegisteredVoter(member)
         ? "Registered Voter"
@@ -113,8 +115,9 @@ function Voters({
     })
   );
 
-  const filteredVoterRecords = voterRecords.filter(
-    (record: any) => {
+  const filteredVoterRecords =
+  voterRecords.filter(
+    (record: VoterRecord) => {
 
       const member = record.member;
 
@@ -604,8 +607,8 @@ function Voters({
 
             filteredVoterRecords.map(
               (
-                record: any,
-                index: number
+                record: VoterRecord,
+index: number
               ) => {
 
                 const member = record.member;
@@ -657,14 +660,11 @@ function Voters({
                           </span>
                         )}
 
-                        {(member?.birthDate ||
-                          member?.birth_date) && (
-                          <span>
-                            Birth Date:{" "}
-                            {member?.birthDate ||
-                              member?.birth_date}
-                          </span>
-                        )}
+                       {member?.birthDate && (
+  <span>
+    Birth Date: {member.birthDate}
+  </span>
+)}
 
                         {member?.civilStatus && (
                           <span>
@@ -678,11 +678,11 @@ function Voters({
 
                       <div className="recent-record-stats">
 
-                        {member?.occupation && (
-                          <span>
-                            {member.occupation}
-                          </span>
-                        )}
+                       {member?.primaryOccupation && (
+  <span>
+    {member.primaryOccupation}
+  </span>
+)}
 
                         <span>
 

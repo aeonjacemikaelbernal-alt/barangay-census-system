@@ -1,12 +1,10 @@
 import { supabase } from "./supabaseClient";
+import type {
+  CensusData,
+  CensusRecord,
+} from "./types/census";
 
 console.log("🔥 CENSUS STORAGE FILE LOADED 🔥");
-
-export type CensusRecord = {
-  id: string;
-  data: any;
-  createdAt: string;
-};
 
 export async function getCensusRecords(): Promise<CensusRecord[]> {
   const { data, error } = await supabase
@@ -27,8 +25,9 @@ export async function getCensusRecords(): Promise<CensusRecord[]> {
 }
 
 export async function saveCensusRecord(
-  data: any
+  data: CensusData
 ): Promise<CensusRecord> {
+
   console.log("🔥 NEW saveCensusRecord() IS RUNNING");
   console.log("CENSUS DATA TO SAVE:", data);
 

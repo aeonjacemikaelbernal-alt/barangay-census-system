@@ -1,5 +1,11 @@
 import { useState } from "react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
 
 import {
   HeartHandshake,
@@ -10,8 +16,13 @@ import {
 } from "lucide-react";
 
 type FourPsProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
+};
+
+type FourPsResident = Resident & {
+  householdNumber: string;
+  familyName: string;
 };
 
 function FourPs({
@@ -21,33 +32,44 @@ function FourPs({
 
       const [searchTerm, setSearchTerm] = useState("");
 
-  const safeRecords = Array.isArray(censusRecords)
-    ? censusRecords.filter(Boolean)
+      const safeRecords: CensusData[] =
+  Array.isArray(censusRecords)
+    ? censusRecords.filter(
+        (record): record is CensusData =>
+          Boolean(record)
+      )
     : [];
 
-  const allResidents = safeRecords.flatMap(
-    (record: any) => {
-      const families = Array.isArray(record?.families)
+  const allResidents: FourPsResident[] =
+  safeRecords.flatMap(
+    (record: CensusData) => {
+      const families = Array.isArray(record.families)
         ? record.families
         : [];
 
-      return families.flatMap((family: any) => {
-        const members = Array.isArray(family?.members)
-          ? family.members
-          : [];
+      return families.flatMap(
+        (family: Family) => {
+          const members = Array.isArray(family.members)
+            ? family.members
+            : [];
 
-        return members.map((member: any) => ({
-          ...member,
-          householdNumber:
-            record?.householdNumber || "—",
-          familyName:
-            family?.familyName || "Unnamed Family",
-        }));
-      });
+          return members.map(
+            (member: Resident) => ({
+              ...member,
+              householdNumber:
+                record.householdNumber || "—",
+              familyName:
+                family.familyName || "Unnamed Family",
+            })
+          );
+        }
+      );
     }
   );
 
-  const isFourPsMember = (member: any) => {
+  const isFourPsMember = (
+  member: FourPsResident
+) => {
     const value = String(
       member?.fourPsMember || ""
     )
@@ -63,17 +85,17 @@ function FourPs({
   };
 
   const fourPsMembers = allResidents.filter(
-    (resident: any) =>
+    (resident: FourPsResident) =>
       isFourPsMember(resident)
   );
 
   const notFourPsMembers = allResidents.filter(
-    (resident: any) =>
+    (resident: FourPsResident) =>
       !isFourPsMember(resident)
   );
 
     const filteredFourPsMembers = fourPsMembers.filter(
-    (resident: any) => {
+    (resident: FourPsResident) => {
       const fullName = [
         resident?.firstName,
         resident?.middleName,
@@ -458,11 +480,10 @@ function FourPs({
           >
 
            {filteredFourPsMembers.map(
-
-              (
-                resident: any,
-                index: number
-              ) => {
+  (
+    resident: FourPsResident,
+    index: number
+  ) => {
 
                 const fullName = [
                   resident?.firstName,

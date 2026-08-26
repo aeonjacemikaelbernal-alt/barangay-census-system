@@ -1,7 +1,13 @@
 import { WalletCards, ArrowLeft } from "lucide-react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
 type IncomeProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
 };
 
@@ -18,16 +24,18 @@ function Income({
     ? censusRecords.filter(Boolean)
     : [];
 
-  const allFamilies = safeRecords.flatMap(
-    (record: any) =>
-      Array.isArray(record?.families)
+ const allFamilies: Family[] =
+  safeRecords.flatMap(
+    (record: CensusData) =>
+      Array.isArray(record.families)
         ? record.families
         : []
   );
 
-  const allMembers = allFamilies.flatMap(
-    (family: any) =>
-      Array.isArray(family?.members)
+  const allMembers: Resident[] =
+  allFamilies.flatMap(
+    (family: Family) =>
+      Array.isArray(family.members)
         ? family.members
         : []
   );
@@ -37,7 +45,7 @@ function Income({
   // =========================
 
   const membersWithIncome = allMembers.filter(
-    (member: any) => {
+    (member: Resident) => {
       const income = Number(member?.monthlyIncome);
 
       return (
@@ -48,7 +56,7 @@ function Income({
   );
 
   const totalIncome = membersWithIncome.reduce(
-    (total: number, member: any) => {
+    (total: number, member: Resident) => {
       return (
         total +
         Number(member?.monthlyIncome || 0)
@@ -66,7 +74,7 @@ function Income({
     membersWithIncome.length > 0
       ? Math.max(
           ...membersWithIncome.map(
-            (member: any) =>
+            (member: Resident) =>
               Number(member?.monthlyIncome || 0)
           )
         )
@@ -80,14 +88,14 @@ function Income({
     {
       label: "Below ₱10,000",
       count: membersWithIncome.filter(
-        (member: any) =>
+        (member: Resident) =>
           Number(member?.monthlyIncome) < 10000
       ).length,
     },
     {
       label: "₱10,000 – ₱19,999",
       count: membersWithIncome.filter(
-        (member: any) => {
+        (member: Resident) => {
           const income =
             Number(member?.monthlyIncome);
 
@@ -101,7 +109,7 @@ function Income({
     {
       label: "₱20,000 – ₱29,999",
       count: membersWithIncome.filter(
-        (member: any) => {
+        (member: Resident) => {
           const income =
             Number(member?.monthlyIncome);
 
@@ -115,7 +123,7 @@ function Income({
     {
       label: "₱30,000 – ₱49,999",
       count: membersWithIncome.filter(
-        (member: any) => {
+        (member: Resident) => {
           const income =
             Number(member?.monthlyIncome);
 
@@ -129,7 +137,7 @@ function Income({
     {
       label: "₱50,000 and above",
       count: membersWithIncome.filter(
-        (member: any) =>
+        (member: Resident) =>
           Number(member?.monthlyIncome) >= 50000
       ).length,
     },
@@ -601,18 +609,18 @@ function Income({
           >
 
             {membersWithIncome.map(
-              (member: any, index: number) => {
+              (member: Resident, index: number) => {
 
                 const fullName =
-                  member?.fullName ||
-                  [
-                    member?.firstName,
-                    member?.middleName,
-                    member?.lastName,
-                  ]
-                    .filter(Boolean)
-                    .join(" ") ||
-                  `Resident ${index + 1}`;
+  [
+    member.firstName,
+    member.middleName,
+    member.lastName,
+    member.suffix,
+  ]
+    .filter(Boolean)
+    .join(" ") ||
+  `Resident ${index + 1}`;
 
                 return (
                   <div
@@ -640,15 +648,15 @@ function Income({
                         {fullName}
                       </strong>
 
-                      {member?.occupation && (
-                        <small
-                          style={{
-                            color: "#758094",
-                          }}
-                        >
-                          {member.occupation}
-                        </small>
-                      )}
+                      {member?.primaryOccupation && (
+  <small
+    style={{
+      color: "#758094",
+    }}
+  >
+    {member.primaryOccupation}
+  </small>
+)}
 
                     </div>
 

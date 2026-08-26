@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./dashboard.css";
 import Sidebar from "./Sidebar";
+import barangayLogo from "./assets/barangay-pambuhan-logo.png";
 
 import type { Page } from "./Sidebar";
 import {
@@ -15,45 +16,78 @@ import {
   UserRound,
   Baby,
   Globe2,
-
+  BarChart3,
+  ClipboardList,
+  Search,
+  SearchX,
 } from "lucide-react";
+
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
 
 type MainDashboardProps = {
   onNewCensus: () => void;
   onNavigate: (page: Page) => void;
-  censusRecords: any[];
+
+  sidebarCollapsed: boolean;
+onSidebarCollapsedChange: (
+  collapsed: boolean
+) => void;
+
+  censusRecords: CensusData[];
 };
+
+type LargestHousehold = {
+  record: CensusData;
+  residentCount: number;
+};
+
+type HouseholdTrendItem = {
+  label: string;
+  value: number;
+};
+
 function MainDashboard({
   onNewCensus,
   onNavigate,
+  sidebarCollapsed,
+  onSidebarCollapsedChange,
   censusRecords,
 }: MainDashboardProps) {
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  const safeRecords = Array.isArray(censusRecords)
-    ? censusRecords.filter(Boolean)
+  const [showAllActivity, setShowAllActivity] =
+  useState(false);
+
+const safeRecords: CensusData[] =
+  Array.isArray(censusRecords)
+    ? censusRecords.filter(
+        (record): record is CensusData =>
+          Boolean(record)
+      )
     : [];
+
 const totalHouseholds = safeRecords.length;
 
-const allFamilies = safeRecords.flatMap(
-  (record) =>
-    Array.isArray(record?.families)
-      ? record.families
-      : []
-);
+const allFamilies: Family[] =
+  safeRecords.flatMap(
+    (record: CensusData) =>
+      Array.isArray(record.families)
+        ? record.families
+        : []
+  );
 
-const allMembers = allFamilies.flatMap(
-  (family: any) =>
-    Array.isArray(family?.members)
-      ? family.members
-      : []
-);
-
-console.log("DASHBOARD RECORDS:", safeRecords);
-console.log("ALL FAMILIES:", allFamilies);
-console.log("ALL MEMBERS:", allMembers);
-console.log("TOTAL MEMBERS:", allMembers.length);
+const allMembers: Resident[] =
+  allFamilies.flatMap(
+    (family: Family) =>
+      Array.isArray(family.members)
+        ? family.members
+        : []
+  );
 
 const totalFamilies = allFamilies.length;
 
@@ -62,7 +96,7 @@ const totalResidents = allMembers.length;
 const totalPopulation = totalResidents;
 
 const totalFamilyHeads = allFamilies.reduce(
-  (total: number, family: any) => {
+  (total: number, family: Family) => {
     const members = Array.isArray(family?.members)
       ? family.members
       : [];
@@ -73,14 +107,14 @@ const totalFamilyHeads = allFamilies.reduce(
 );
 
 const totalRegisteredVoters = allMembers.filter(
-  (member: any) =>
+ (member: Resident) =>
     String(member?.voterStatus || "")
       .trim()
       .toLowerCase() === "registered voter"
 ).length;
 
 const totalChildren = allFamilies.reduce(
-  (total: number, family: any) => {
+  (total: number, family: Family) => {
     const members = Array.isArray(family?.members)
       ? family.members
       : [];
@@ -96,11 +130,8 @@ const totalChildren = allFamilies.reduce(
 
 const educationCounts: Record<string, number> = {};
 
-allMembers.forEach((member: any) => {
-  const education =
-    member?.education ||
-    member?.educationalAttainment ||
-    member?.highestEducation;
+allMembers.forEach((member: Resident) => {
+  const education = member.education;
 
   if (!education) return;
 
@@ -132,8 +163,8 @@ const maxEducationCount = Math.max(
 
 const occupationCounts: Record<string, number> = {};
 
-allMembers.forEach((member: any) => {
-  const occupation = member?.occupation;
+allMembers.forEach((member: Resident) => {
+  const occupation = member?.primaryOccupation;
 
   if (!occupation) return;
 
@@ -161,32 +192,17 @@ const occupationChartData = Object.entries(
 
 const skillCounts: Record<string, number> = {};
 
-allMembers.forEach((member: any) => {
-  const memberSkills = [];
+allMembers.forEach((member: Resident) => {
+  if (!member.skills) return;
 
-  if (Array.isArray(member?.skills)) {
-    memberSkills.push(...member.skills);
-  } else if (member?.skills) {
-    memberSkills.push(member.skills);
-  }
+  const memberSkills = member.skills
+    .split(",")
+    .map((skill) => skill.trim())
+    .filter(Boolean);
 
-  if (member?.skill) {
-    memberSkills.push(member.skill);
-  }
-
-  memberSkills.forEach((skill: any) => {
-    if (!skill) return;
-
-    const label = String(
-      typeof skill === "object"
-        ? skill?.skillName || skill?.name || ""
-        : skill
-    ).trim();
-
-    if (!label) return;
-
-    skillCounts[label] =
-      (skillCounts[label] || 0) + 1;
+  memberSkills.forEach((skill) => {
+    skillCounts[skill] =
+      (skillCounts[skill] || 0) + 1;
   });
 });
 
@@ -207,7 +223,7 @@ const skillsChartData = Object.entries(
 let registeredVoters = 0;
 let nonRegisteredVoters = 0;
 
-allMembers.forEach((member: any) => {
+allMembers.forEach((member: Resident) => {
   const voterStatus = String(
     member?.voterStatus || ""
   )
@@ -224,18 +240,6 @@ allMembers.forEach((member: any) => {
   }
 });
 
-const voterChartData = [
-  {
-    label: "Registered",
-    count: registeredVoters,
-  },
-  {
-    label: "Not Registered",
-    count: nonRegisteredVoters,
-  },
-];
-
-
 // =====================================================
 // SEX CHART DATA
 // =====================================================
@@ -243,7 +247,7 @@ const voterChartData = [
 let maleCount = 0;
 let femaleCount = 0;
 
-allMembers.forEach((member: any) => {
+allMembers.forEach((member: Resident) => {
   const sex = String(
     member?.sex || ""
   )
@@ -259,25 +263,15 @@ allMembers.forEach((member: any) => {
   }
 });
 
-const sexChartData = [
-  {
-    label: "Male",
-    count: maleCount,
-  },
-  {
-    label: "Female",
-    count: femaleCount,
-  },
-];
-
-
 
 
 /* =====================================================
    DASHBOARD CHART DATA
 ===================================================== */
 
-const getMemberAge = (birthDate: any): number | null => {
+const getMemberAge = (
+  birthDate: string
+): number | null => {
   if (!birthDate) return null;
 
   const birth = new Date(birthDate);
@@ -309,31 +303,20 @@ const getMemberAge = (birthDate: any): number | null => {
   return age >= 0 ? age : null;
 };
 
-
-
-
-
 /* =========================
    AGE DISTRIBUTION
 ========================= */
 
 const childrenCount = allMembers.filter(
-  (member: any) => {
-    const age = getMemberAge(
-      member?.birthDate ||
-      member?.birth_date
-    );
-
+  (member: Resident) => {
+    const age = getMemberAge(member.birthDate);
     return age !== null && age <= 12;
   }
 ).length;
 
 const adolescentCount = allMembers.filter(
-  (member: any) => {
-    const age = getMemberAge(
-      member?.birthDate ||
-      member?.birth_date
-    );
+  (member: Resident) => {
+    const age = getMemberAge(member.birthDate);
 
     return age !== null &&
       age >= 13 &&
@@ -342,11 +325,8 @@ const adolescentCount = allMembers.filter(
 ).length;
 
 const adultCount = allMembers.filter(
-  (member: any) => {
-    const age = getMemberAge(
-      member?.birthDate ||
-      member?.birth_date
-    );
+  (member: Resident) => {
+    const age = getMemberAge(member.birthDate);
 
     return age !== null &&
       age >= 18 &&
@@ -355,34 +335,11 @@ const adultCount = allMembers.filter(
 ).length;
 
 const seniorCount = allMembers.filter(
-  (member: any) => {
-    const age = getMemberAge(
-      member?.birthDate ||
-      member?.birth_date
-    );
-
+  (member: Resident) => {
+    const age = getMemberAge(member.birthDate);
     return age !== null && age >= 60;
   }
 ).length;
-
-const ageChartData = [
-  {
-    label: "Children (0–12)",
-    count: childrenCount,
-  },
-  {
-    label: "Adolescents (13–17)",
-    count: adolescentCount,
-  },
-  {
-    label: "Adults (18–59)",
-    count: adultCount,
-  },
-  {
-    label: "Seniors (60+)",
-    count: seniorCount,
-  },
-];
 
 /* =========================
    HOUSEHOLD OVERVIEW
@@ -398,40 +355,32 @@ const averageResidentsPerHousehold =
 
 
 const largestHousehold =
-  safeRecords.reduce(
+  safeRecords.reduce<LargestHousehold | null>(
     (
-      largest: any,
-      record: any
+      largest,
+      record: CensusData
     ) => {
+      const families = Array.isArray(record.families)
+        ? record.families
+        : [];
 
-      const families =
-        Array.isArray(record?.families)
-          ? record.families
-          : [];
+      const residentCount = families.reduce(
+        (
+          total: number,
+          family: Family
+        ) => {
+          const members = Array.isArray(family.members)
+            ? family.members
+            : [];
 
-      const residentCount =
-        families.reduce(
-          (
-            total: number,
-            family: any
-          ) => {
-
-            const members =
-              Array.isArray(
-                family?.members
-              )
-                ? family.members
-                : [];
-
-            return total + members.length;
-          },
-          0
-        );
+          return total + members.length;
+        },
+        0
+      );
 
       if (
         !largest ||
-        residentCount >
-          largest.residentCount
+        residentCount > largest.residentCount
       ) {
         return {
           record,
@@ -449,67 +398,62 @@ const largestHousehold =
    HOUSEHOLD TREND
 ========================= */
 
-const householdTrend =
+const householdTrend: HouseholdTrendItem[] =
   safeRecords
     .slice()
     .reverse()
     .slice(-6)
     .map(
       (
-        record: any,
+        record: CensusData,
         index: number
       ) => {
+        const families = Array.isArray(record.families)
+          ? record.families
+          : [];
 
-        const families =
-          Array.isArray(record?.families)
-            ? record.families
-            : [];
+        const residents = families.reduce(
+          (
+            total: number,
+            family: Family
+          ) => {
+            const members = Array.isArray(family.members)
+              ? family.members
+              : [];
 
-        const residents =
-          families.reduce(
-            (
-              total: number,
-              family: any
-            ) => {
-
-              const members =
-                Array.isArray(
-                  family?.members
-                )
-                  ? family.members
-                  : [];
-
-              return (
-                total +
-                members.length
-              );
-            },
-            0
-          );
+            return total + members.length;
+          },
+          0
+        );
 
         return {
           label:
-            record?.householdNumber ||
+            record.householdNumber ||
             `Record ${index + 1}`,
           value: residents,
         };
       }
     );
 
-const filteredMembers = allMembers.filter((member: any) => {
+    const recentActivityRecords =
+  showAllActivity
+    ? safeRecords
+    : safeRecords.slice(0, 5);
+
+
+const filteredMembers = allMembers.filter((member: Resident) => {
   const query = searchQuery.trim().toLowerCase();
 
   if (!query) return false;
 
-  const searchableText = [
-    member?.firstName,
-    member?.middleName,
-    member?.lastName,
-    member?.fullName,
-    member?.occupation,
-    member?.skills,
-    member?.skill,
-  ]
+ const searchableText = [
+  member?.firstName,
+  member?.middleName,
+  member?.lastName,
+  member.suffix,
+  member?.primaryOccupation,
+  member?.skills,
+]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -517,13 +461,21 @@ const filteredMembers = allMembers.filter((member: any) => {
   return searchableText.includes(query);
 });
 
-  return (
-    <div className="dashboard-page">
-
-    <Sidebar
+ return (
+  <div
+    className="dashboard-page"
+    style={{
+      "--barangay-logo": `url(${barangayLogo})`,
+    } as React.CSSProperties}
+  >
+<Sidebar
   page="dashboard"
   onNavigate={onNavigate}
   onNewCensus={onNewCensus}
+  collapsed={sidebarCollapsed}
+  onCollapsedChange={
+    onSidebarCollapsedChange
+  }
 />
 
       {/* =====================================================
@@ -1254,14 +1206,14 @@ const filteredMembers = allMembers.filter((member: any) => {
 
           {householdTrend.map(
             (
-              item: any,
+              item: HouseholdTrendItem,
               index: number
             ) => {
 
               const maxValue =
                 Math.max(
                   ...householdTrend.map(
-                    (entry: any) =>
+                    (entry: HouseholdTrendItem) =>
                       entry.value
                   ),
                   1
@@ -1324,7 +1276,7 @@ const filteredMembers = allMembers.filter((member: any) => {
     DATA ANALYTICS
 ================================================= */}
 
-<section className="dashboard-section dashboard-chart-section">
+<section className="dashboard-section">
 
   <div className="section-heading">
 
@@ -1334,512 +1286,291 @@ const filteredMembers = allMembers.filter((member: any) => {
       </span>
 
       <h2>
-        Educational Attainment
+        Resident Analytics
       </h2>
     </div>
 
     <p>
-      Distribution of residents by educational attainment.
+      Education, occupation, and skills overview.
     </p>
 
   </div>
 
-  <div className="dashboard-chart-card">
+  <div className="analytics-grid">
 
-    {educationChartData.length === 0 ? (
+    {/* =========================
+        EDUCATION
+    ========================= */}
 
-      <div className="chart-empty-state">
+    <div className="dashboard-chart-card analytics-card">
 
-        <div className="empty-icon">
-          📊
-        </div>
-
-        <h3>
-          No education data available
-        </h3>
-
-        <p>
-          Education statistics will appear here
-          once resident census data is available.
-        </p>
-
-      </div>
-
-    ) : (
-
-      <div className="education-chart">
-
-        {educationChartData.map((item) => {
-
-          const percentage =
-            (item.count / maxEducationCount) * 100;
-
-          return (
-
-            <div
-              className="education-chart-row"
-              key={item.label}
-            >
-
-              <div className="education-chart-label">
-                <span>
-                  {item.label}
-                </span>
-
-                <strong>
-                  {item.count}
-                </strong>
-              </div>
-
-              <div className="education-chart-track">
-
-                <div
-                  className="education-chart-bar"
-                  style={{
-                    width: `${percentage}%`,
-                  }}
-                />
-
-              </div>
-
-            </div>
-
-          );
-
-        })}
-
-      </div>
-
-    )}
-
-  </div>
-
-</section>
-
-{/* =================================================
-    OCCUPATION ANALYTICS
-================================================= */}
-
-<section className="dashboard-section dashboard-chart-section">
-
-  <div className="section-heading">
-
-    <div>
-      <span>
-        DATA ANALYTICS
-      </span>
-
-      <h2>
-        Occupation Distribution
-      </h2>
-    </div>
-
-    <p>
-      Distribution of residents by occupation.
-    </p>
-
-  </div>
-
-  <div className="dashboard-chart-card">
-
-    {occupationChartData.length === 0 ? (
-
-      <div className="chart-empty-state">
-        <div className="empty-icon">📊</div>
-
-        <h3>
-          No occupation data available
-        </h3>
-
-        <p>
-          Occupation statistics will appear here
-          once resident data is available.
-        </p>
-      </div>
-
-    ) : (
-
-      <div className="education-chart">
-
-        {occupationChartData
-          .slice(0, 10)
-          .map((item) => {
-
-            const maxCount = Math.max(
-              ...occupationChartData.map(
-                (entry) => entry.count
-              ),
-              1
-            );
-
-            const percentage =
-              (item.count / maxCount) * 100;
-
-            return (
-              <div
-                className="education-chart-row"
-                key={item.label}
-              >
-
-                <div className="education-chart-label">
-
-                  <span>
-                    {item.label}
-                  </span>
-
-                  <strong>
-                    {item.count}
-                  </strong>
-
-                </div>
-
-                <div className="education-chart-track">
-
-                  <div
-                    className="education-chart-bar"
-                    style={{
-                      width: `${percentage}%`,
-                    }}
-                  />
-
-                </div>
-
-              </div>
-            );
-          })}
-
-      </div>
-
-    )}
-
-  </div>
-
-</section>
-
-
-{/* =================================================
-    SKILLS ANALYTICS
-================================================= */}
-
-<section className="dashboard-section dashboard-chart-section">
-
-  <div className="section-heading">
-
-    <div>
-      <span>
-        DATA ANALYTICS
-      </span>
-
-      <h2>
-        Resident Skills
-      </h2>
-    </div>
-
-    <p>
-      Most common skills and specialties among residents.
-    </p>
-
-  </div>
-
-  <div className="dashboard-chart-card">
-
-    {skillsChartData.length === 0 ? (
-
-      <div className="chart-empty-state">
-        <div className="empty-icon">🛠️</div>
-
-        <h3>
-          No skills data available
-        </h3>
-
-        <p>
-          Skills statistics will appear here
-          once resident data is available.
-        </p>
-      </div>
-
-    ) : (
-
-      <div className="education-chart">
-
-        {skillsChartData
-          .slice(0, 10)
-          .map((item) => {
-
-            const maxCount = Math.max(
-              ...skillsChartData.map(
-                (entry) => entry.count
-              ),
-              1
-            );
-
-            const percentage =
-              (item.count / maxCount) * 100;
-
-            return (
-              <div
-                className="education-chart-row"
-                key={item.label}
-              >
-
-                <div className="education-chart-label">
-
-                  <span>
-                    {item.label}
-                  </span>
-
-                  <strong>
-                    {item.count}
-                  </strong>
-
-                </div>
-
-                <div className="education-chart-track">
-
-                  <div
-                    className="education-chart-bar"
-                    style={{
-                      width: `${percentage}%`,
-                    }}
-                  />
-
-                </div>
-
-              </div>
-            );
-          })}
-
-      </div>
-
-    )}
-
-  </div>
-
-</section>
-
-
-{/* =================================================
-    DEMOGRAPHIC ANALYTICS
-================================================= */}
-
-<section className="dashboard-section dashboard-chart-grid-section">
-
-  <div className="section-heading">
-
-    <div>
-      <span>
-        DEMOGRAPHICS
-      </span>
-
-      <h2>
-        Population Distribution
-      </h2>
-    </div>
-
-    <p>
-      Demographic overview of registered residents.
-    </p>
-
-  </div>
-
-
-  <div className="dashboard-mini-chart-grid">
-
-    {/* SEX */}
-
-    <div className="dashboard-chart-card">
-
-      <div className="mini-chart-header">
-
+      <div className="chart-card-header">
         <div>
           <span>
-            SEX
+            EDUCATION
           </span>
 
           <h3>
-            Residents by Sex
+            Educational Attainment
           </h3>
         </div>
-
       </div>
 
-      <div className="mini-chart-list">
+      {educationChartData.length === 0 ? (
 
-        {sexChartData.map((item) => {
+        <div className="chart-empty-state">
 
-          const percentage =
-            totalResidents > 0
-              ? (item.count / totalResidents) * 100
-              : 0;
+          <div className="empty-icon">
+            <BarChart3
+              size={24}
+              strokeWidth={1.8}
+            />
+          </div>
 
-          return (
-            <div
-              className="mini-chart-row"
-              key={item.label}
-            >
+          <h3>
+            No education data available
+          </h3>
 
-              <div className="mini-chart-label">
-                <span>
-                  {item.label}
-                </span>
+          <p>
+            Education statistics will appear here
+            once resident data is available.
+          </p>
 
-                <strong>
-                  {item.count}
-                </strong>
-              </div>
+        </div>
 
-              <div className="education-chart-track">
+      ) : (
 
+        <div className="education-chart">
+
+          {educationChartData
+            .slice(0, 6)
+            .map((item) => {
+
+              const percentage =
+                (item.count /
+                  maxEducationCount) * 100;
+
+              return (
                 <div
-                  className="education-chart-bar"
-                  style={{
-                    width: `${percentage}%`,
-                  }}
-                />
+                  className="education-chart-row"
+                  key={item.label}
+                >
+                  <div className="education-chart-label">
+                    <span>
+                      {item.label}
+                    </span>
 
-              </div>
+                    <strong>
+                      {item.count}
+                    </strong>
+                  </div>
 
-            </div>
-          );
-        })}
+                  <div className="education-chart-track">
+                    <div
+                      className="education-chart-bar"
+                      style={{
+                        width: `${percentage}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
 
-      </div>
+        </div>
+
+      )}
 
     </div>
 
 
-    {/* AGE */}
+    {/* =========================
+        OCCUPATION
+    ========================= */}
 
-    <div className="dashboard-chart-card">
+    <div className="dashboard-chart-card analytics-card">
 
-      <div className="mini-chart-header">
-
+      <div className="chart-card-header">
         <div>
           <span>
-            AGE
+            OCCUPATION
           </span>
 
           <h3>
-            Age Distribution
+            Occupation Distribution
           </h3>
         </div>
-
       </div>
 
-      <div className="mini-chart-list">
+      {occupationChartData.length === 0 ? (
 
-        {ageChartData.map((item) => {
+        <div className="chart-empty-state">
 
-          const percentage =
-            totalResidents > 0
-              ? (item.count / totalResidents) * 100
-              : 0;
+          <div className="empty-icon">
+            <BriefcaseBusiness
+              size={24}
+              strokeWidth={1.8}
+            />
+          </div>
 
-          return (
-            <div
-              className="mini-chart-row"
-              key={item.label}
-            >
+          <h3>
+            No occupation data available
+          </h3>
 
-              <div className="mini-chart-label">
+          <p>
+            Occupation statistics will appear here
+            once resident data is available.
+          </p>
 
-                <span>
-                  {item.label}
-                </span>
+        </div>
 
-                <strong>
-                  {item.count}
-                </strong>
+      ) : (
 
-              </div>
+        <div className="education-chart">
 
-              <div className="education-chart-track">
+          {occupationChartData
+            .slice(0, 6)
+            .map((item) => {
 
+              const maxCount = Math.max(
+                ...occupationChartData.map(
+                  (entry) => entry.count
+                ),
+                1
+              );
+
+              const percentage =
+                (item.count / maxCount) * 100;
+
+              return (
                 <div
-                  className="education-chart-bar"
-                  style={{
-                    width: `${percentage}%`,
-                  }}
-                />
+                  className="education-chart-row"
+                  key={item.label}
+                >
+                  <div className="education-chart-label">
+                    <span>
+                      {item.label}
+                    </span>
 
-              </div>
+                    <strong>
+                      {item.count}
+                    </strong>
+                  </div>
 
-            </div>
-          );
-        })}
+                  <div className="education-chart-track">
+                    <div
+                      className="education-chart-bar"
+                      style={{
+                        width: `${percentage}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
 
-      </div>
+        </div>
+
+      )}
 
     </div>
 
 
-    {/* VOTER STATUS */}
+    {/* =========================
+        SKILLS
+    ========================= */}
 
-    <div className="dashboard-chart-card">
+    <div className="dashboard-chart-card analytics-card">
 
-      <div className="mini-chart-header">
-
+      <div className="chart-card-header">
         <div>
           <span>
-            VOTER STATUS
+            SKILLS
           </span>
 
           <h3>
-            Voter Registration
+            Resident Skills
           </h3>
         </div>
-
       </div>
 
-      <div className="mini-chart-list">
+      {skillsChartData.length === 0 ? (
 
-        {voterChartData.map((item) => {
+        <div className="chart-empty-state">
 
-          const percentage =
-            totalResidents > 0
-              ? (item.count / totalResidents) * 100
-              : 0;
+          <div className="empty-icon">
+            <Wrench
+              size={24}
+              strokeWidth={1.8}
+            />
+          </div>
 
-          return (
-            <div
-              className="mini-chart-row"
-              key={item.label}
-            >
+          <h3>
+            No skills data available
+          </h3>
 
-              <div className="mini-chart-label">
+          <p>
+            Skills statistics will appear here
+            once resident data is available.
+          </p>
 
-                <span>
-                  {item.label}
-                </span>
+        </div>
 
-                <strong>
-                  {item.count}
-                </strong>
+      ) : (
 
-              </div>
+        <div className="education-chart">
 
-              <div className="education-chart-track">
+          {skillsChartData
+            .slice(0, 6)
+            .map((item) => {
 
+              const maxCount = Math.max(
+                ...skillsChartData.map(
+                  (entry) => entry.count
+                ),
+                1
+              );
+
+              const percentage =
+                (item.count / maxCount) * 100;
+
+              return (
                 <div
-                  className="education-chart-bar"
-                  style={{
-                    width: `${percentage}%`,
-                  }}
-                />
+                  className="education-chart-row"
+                  key={item.label}
+                >
+                  <div className="education-chart-label">
+                    <span>
+                      {item.label}
+                    </span>
 
-              </div>
+                    <strong>
+                      {item.count}
+                    </strong>
+                  </div>
 
-            </div>
-          );
-        })}
+                  <div className="education-chart-track">
+                    <div
+                      className="education-chart-bar"
+                      style={{
+                        width: `${percentage}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
 
-      </div>
+        </div>
+
+      )}
 
     </div>
 
   </div>
 
 </section>
+
 
         {/* =================================================
             QUICK ACTIONS
@@ -2097,8 +1828,8 @@ const filteredMembers = allMembers.filter((member: any) => {
          <div className="dashboard-search">
 
   <span>
-    🔍
-  </span>
+  <Search size={18} strokeWidth={1.8} />
+</span>
 
   <input
     type="text"
@@ -2136,7 +1867,9 @@ const filteredMembers = allMembers.filter((member: any) => {
     {filteredMembers.length === 0 ? (
 
       <div className="search-no-results">
-        <span>🔎</span>
+        <span>
+  <SearchX size={18} strokeWidth={1.8} />
+</span>
 
         <div>
           <strong>
@@ -2155,15 +1888,15 @@ const filteredMembers = allMembers.filter((member: any) => {
       <div className="search-result-list">
 
         {filteredMembers.slice(0, 8).map(
-          (member: any, index: number) => {
+          (member: Resident, index: number) => {
 
             const fullName =
-              member?.fullName ||
-              [
+            [
                 member?.firstName,
                 member?.middleName,
                 member?.lastName,
-              ]
+                member?.suffix,
+            ]
                 .filter(Boolean)
                 .join(" ") ||
               "Unnamed Resident";
@@ -2187,17 +1920,11 @@ const filteredMembers = allMembers.filter((member: any) => {
                     {fullName}
                   </strong>
 
-                  {member?.occupation && (
-                    <span>
-                      {member.occupation}
-                    </span>
-                  )}
-
-                  {member?.skill && (
-                    <small>
-                      Skill: {member.skill}
-                    </small>
-                  )}
+                 {member?.primaryOccupation && (
+  <span>
+    {member.primaryOccupation}
+  </span>
+)} 
 
                   {member?.skills && (
                     <small>
@@ -2252,8 +1979,8 @@ const filteredMembers = allMembers.filter((member: any) => {
     <div className="empty-state">
 
       <div className="empty-icon">
-        📋
-      </div>
+  <ClipboardList size={24} strokeWidth={1.8} />
+</div>
 
       <h3>
         No census records yet
@@ -2276,8 +2003,8 @@ const filteredMembers = allMembers.filter((member: any) => {
   ) : (
 
     <div className="recent-records">
-      {safeRecords.map(
-        (record: any, index: number) => {
+      {recentActivityRecords.map(
+        (record: CensusData, index: number) => {
 
           const household =
             record?.household || {};
@@ -2291,7 +2018,7 @@ const filteredMembers = allMembers.filter((member: any) => {
             families.reduce(
               (
                 total: number,
-                family: any
+               family: Family
               ) => {
 
                 const members =
@@ -2402,6 +2129,20 @@ const filteredMembers = allMembers.filter((member: any) => {
 
     </div>
 
+  )}
+
+   {safeRecords.length > 5 && (
+    <button
+      type="button"
+      className="activity-view-all-button"
+      onClick={() =>
+        setShowAllActivity((current) => !current)
+      }
+    >
+      {showAllActivity
+        ? "Show Less"
+        : "View All Records"}
+    </button>
   )}
 
 </section>

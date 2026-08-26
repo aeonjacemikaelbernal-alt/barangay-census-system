@@ -1,69 +1,13 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import { House } from "lucide-react";
+import type {
+  Resident,
+  Family,
+  CensusData,
+} from "./types/census";
 
-type Resident = {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  suffix: string;
-
-  birthDate: string;
-  height?: string;
-  weight?: string;
-  birthPlace: string;
-  sex: string;
-  civilStatus: string;
-
-  contactNumber: string;
-  email: string;
-
-  education: string;
-  schoolStatus: string;
-  schoolLevel: string;
-
-  elementarySchool: string;
-  juniorHighSchool: string;
-  seniorHighSchool: string;
-  collegeUniversity: string;
-  postgraduateSchool: string;
-  
-  shsStrand: string;
-  course: string;
-  specialization: string;
-  osyReason: string;
-  osyOtherReason: string;
-
- primaryOccupation: string;
-  secondaryOccupations: string[];
-  employmentStatus: string;
-  employer: string;
-  monthlyIncome: string;
-
-
-  skills: string;
-
-  voterStatus: string;
-  nationality: string;
-  religion: string;
-  fourPsMember: string;
-  disability: string;
-  seniorCitizen: string;
-
-  hasOwnFamily: string;
-
-  familyMemberName: string;
-familyRelationship: string;
-familyMemberStatus: string;
-};
-
-
-type Family = {
-  id: number;
-  familyName: string;
-  linkedResidentKey: string | null;
-  members: Resident[];
-};
+ 
 const createResident = (): Resident => ({
   firstName: "",
   middleName: "",
@@ -194,7 +138,7 @@ const createFamily = (
 });
 
 type HouseholdPrototypeProps = {
-  onSubmitCensus: (data: any) => void;
+  onSubmitCensus: (data: CensusData) => void;
 };
 
 function splitFullName(fullName: string) {
@@ -3549,15 +3493,41 @@ for (
 
 setValidationError("");
 
-const censusData = {
+const selectedRegionName =
+  regions.find((item) => item.code === region)?.name || "";
+
+const selectedProvinceName =
+  provinces.find((item) => item.code === province)?.name || "";
+
+const selectedMunicipalityName =
+  municipalities.find(
+    (item) => item.code === municipality
+  )?.name || "";
+
+const selectedBarangayName =
+  barangays.find(
+    (item) => item.code === barangay
+  )?.name || "";
+
+const censusData: CensusData = {
   householdNumber,
+
   household: {
     houseNumber,
-    street,
+
+    region: selectedRegionName,
+    province: selectedProvinceName,
+    municipality: selectedMunicipalityName,
+    barangay: selectedBarangayName,
+
     purok,
-    yearsInBarangay,
+    street,
+
+    currentAddress,
     previousAddress,
+    yearsInBarangay,
   },
+
   families,
 };
 
@@ -3586,13 +3556,6 @@ if (activeFamilyIndex === 0) {
     return;
   }
 }
-
-onSubmitCensus(censusData);
-
-console.log(
-  "BARANGAY CENSUS DATA",
-  censusData
-);
 
   onSubmitCensus(censusData);
 

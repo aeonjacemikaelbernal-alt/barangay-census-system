@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import type {
+  CensusData,
+  CensusRecord,
+} from "./types/census";
 
 import MainDashboard from "./MainDashboard";
 import HouseholdPrototype from "./HouseholdPrototype";
@@ -25,6 +29,8 @@ import { supabase } from "./supabaseClient";
 
 function App() {
   const [page, setPage] = useState<Page>("dashboard");
+
+  const censusSavingRef = useRef(false);
 
     const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -56,8 +62,13 @@ function App() {
   }, []);
 
   // Census records loaded from Supabase
-const [censusRecords, setCensusRecords] = useState<any[]>([]);
+ const [censusRecords, setCensusRecords] =
+  useState<CensusRecord[]>([]);
 
+  const censusData = censusRecords.map(
+  (record) => record.data
+);
+  
 useEffect(() => {
   if (!session) {
     return;
@@ -66,41 +77,48 @@ useEffect(() => {
   const loadCensusRecords = async () => {
     const records = await getCensusRecords();
 
-    setCensusRecords(
-      records.map((record) => record.data)
-    );
+   setCensusRecords(records);
   };
 
   loadCensusRecords();
 }, [session]);
 
-const handleCensusSubmit = async (data: any) => {
-  console.log("RECEIVED CENSUS DATA IN APP:", data);
+const handleCensusSubmit = async (
+  data: CensusData
+) => {
+  if (censusSavingRef.current) {
+    console.warn(
+      "CENSUS SUBMISSION BLOCKED: save already in progress."
+    );
+    return;
+  }
+
+  censusSavingRef.current = true;
 
   try {
-    const savedRecord = await saveCensusRecord(data);
+    const savedRecord =
+      await saveCensusRecord(data);
+
     if (!savedRecord) {
-      console.error("CENSUS WAS NOT SAVED TO SUPABASE.");
+      console.error(
+        "CENSUS WAS NOT SAVED TO SUPABASE."
+      );
       return;
     }
 
-    console.log(
-      "CENSUS SAVED SUCCESSFULLY:",
-      savedRecord
-    );
-
-    setCensusRecords((current) => [
-      ...current,
-      savedRecord.data,
-    ]);
+   setCensusRecords((current) => [
+  ...current,
+  savedRecord,
+]);
 
     setPage("dashboard");
-
   } catch (error) {
     console.error(
       "FAILED TO SAVE CENSUS TO SUPABASE:",
       error
     );
+  } finally {
+    censusSavingRef.current = false;
   }
 };
 
@@ -138,7 +156,9 @@ if (page === "residents") {
         onNewCensus={() => setPage("census")}
       />
 
-      <Residents />
+      <Residents
+       censusRecords={censusData}
+      />
 
     </div>
   );
@@ -154,7 +174,7 @@ if (page === "families") {
       />
 
       <Families
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
 
@@ -172,7 +192,7 @@ if (page === "fourPs") {
       />
 
       <FourPs
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
     </div>
@@ -190,7 +210,7 @@ if (page === "households") {
       />
 
       <Households
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
 
@@ -209,7 +229,7 @@ if (page === "education") {
       />
 
       <Education
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
 
@@ -227,7 +247,7 @@ if (page === "occupation") {
       />
 
       <Occupation
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
     </div>
@@ -244,7 +264,7 @@ if (page === "skills") {
       />
 
       <Skills
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
     </div>
@@ -261,7 +281,7 @@ if (page === "income") {
       />
 
       <Income
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
     </div>
@@ -278,7 +298,7 @@ if (page === "voters") {
       />
 
       <Voters
-        censusRecords={censusRecords}
+       censusRecords={censusData}
         onBackToDashboard={() => setPage("dashboard")}
       />
     </div>
@@ -304,9 +324,7 @@ if (page === "settings") {
         onRefreshData={async () => {
           const records = await getCensusRecords();
 
-          setCensusRecords(
-            records.map((record) => record.data)
-          );
+         setCensusRecords(records);
         }}
         onLogout={async () => {
           const { error } =
@@ -364,20 +382,14 @@ if (page === "settings") {
       </div>
     );
   }
-console.log("APP CENSUS RECORDS:", censusRecords);
-console.log("APP FIRST RECORD:", censusRecords[0]);
-console.log(
-  "APP FIRST RECORD FAMILIES:",
-  censusRecords[0]?.families
-);
+
  return (
   <MainDashboard
     onNewCensus={() => setPage("census")}
     onNavigate={(nextPage) => {
-      console.log("APP NAVIGATION:", nextPage);
       setPage(nextPage);
     }}
-    censusRecords={censusRecords}
+   censusRecords={censusData}
   />
 );
 }

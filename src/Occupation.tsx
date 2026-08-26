@@ -3,9 +3,20 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
 type OccupationProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
+};
+
+type OccupationResident = Resident & {
+  householdNumber: string;
+  familyName: string;
 };
 
 function Occupation({
@@ -17,18 +28,19 @@ function Occupation({
     ? censusRecords.filter(Boolean)
     : [];
 
-  const allResidents = safeRecords.flatMap(
-    (record: any) => {
+  const allResidents: OccupationResident[] =
+  safeRecords.flatMap(
+    (record: CensusData) => {
       const families = Array.isArray(record?.families)
         ? record.families
         : [];
 
-      return families.flatMap((family: any) => {
+      return families.flatMap((family: Family) => {
         const members = Array.isArray(family?.members)
           ? family.members
           : [];
 
-        return members.map((member: any) => ({
+        return members.map((member: Resident) => ({
           ...member,
           householdNumber:
             record?.householdNumber || "—",
@@ -170,7 +182,7 @@ function Occupation({
         >
 
           {allResidents.map(
-            (resident: any, index: number) => {
+            (resident: OccupationResident, index: number) => {
 
               const fullName = [
                 resident?.firstName,
@@ -275,7 +287,8 @@ function Occupation({
                       <strong>
                         Occupation:
                       </strong>{" "}
-                      {resident?.occupation || "—"}
+                    {resident?.primaryOccupation || "—"}
+
                     </p>
 
                     <p>

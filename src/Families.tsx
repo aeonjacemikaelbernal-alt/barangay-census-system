@@ -6,8 +6,20 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
+type SelectedResident = Resident & {
+  fullName: string;
+  familyName: string;
+  householdNumber: string;
+};
+
 type FamiliesProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
 };
 
@@ -18,20 +30,27 @@ function Families({
 
  
 
- const [selectedFamily, setSelectedFamily] =
-  useState<any | null>(null);
+const [selectedFamily, setSelectedFamily] =
+  useState<FamilyWithHousehold | null>(null);
 
 const [selectedResident, setSelectedResident] =
-  useState<any | null>(null);
+  useState<SelectedResident | null>(null);
+
+  type FamilyWithHousehold = Family & {
+  householdNumber: string;
+  household: CensusData["household"];
+};
 
   const safeRecords = Array.isArray(censusRecords)
     ? censusRecords.filter(Boolean)
     : [];
 
-  const allFamilies = safeRecords.flatMap(
-    (record: any) =>
-      Array.isArray(record?.families)
-        ? record.families.map((family: any) => ({
+ const allFamilies: FamilyWithHousehold[] =
+  safeRecords.flatMap(
+    (record: CensusData) =>
+      Array.isArray(record.families)
+        ? record.families.map((family: Family) => ({
+          
             ...family,
             householdNumber:
               record?.householdNumber || "—",
@@ -291,9 +310,7 @@ const [selectedResident, setSelectedResident] =
             </span>
 
             <span>
-              {selectedResident?.primaryOccupation ||
-                selectedResident?.occupation ||
-                "—"}
+             {selectedResident?.primaryOccupation || "—"}
             </span>
           </div>
 
@@ -505,7 +522,7 @@ if (selectedFamily) {
             }}
           >
             {members.map(
-              (member: any, index: number) => {
+              (member: Resident, index: number) => {
                 const fullName = [
                   member?.firstName,
                   member?.middleName,
@@ -891,7 +908,7 @@ if (selectedFamily) {
                     >
                       {members.map(
                         (
-                          member: any,
+                          member: Resident,
                           memberIndex: number
                         ) => {
                           const fullName = [

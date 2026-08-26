@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import "./dashboard.css";
 import { UserRound, Cake, Vote, Search, X } from "lucide-react";
-import { supabase } from "./supabaseClient";
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
 
-type Resident = {
-  resident_id: number;
-  household_id: number | null;
+
+type ResidentRow = {
+  resident_id: string;
+  household_id: string | null;
   first_name: string | null;
   middle_name: string | null;
   last_name: string | null;
@@ -18,9 +23,15 @@ type Resident = {
   has_own_family: boolean | null;
 };
 
-function Residents() {
-  const [residents, setResidents] = useState<Resident[]>([]);
-  const [loading, setLoading] = useState(true);
+ type ResidentsProps = {
+  censusRecords: CensusData[];
+};
+
+function Residents({
+  censusRecords,
+}: ResidentsProps) {
+
+ 
 
   // =========================
   // SEARCH & FILTER STATES
@@ -31,27 +42,57 @@ function Residents() {
   const [civilStatusFilter, setCivilStatusFilter] = useState("");
   const [residentTypeFilter, setResidentTypeFilter] = useState("");
 
-  useEffect(() => {
-    loadResidents();
-  }, []);
+ const residents: ResidentRow[] = (
+  Array.isArray(censusRecords)
+    ? censusRecords
+    : []
+).flatMap((record: CensusData, recordIndex: number) => {
+  const families = Array.isArray(record?.families)
+    ? record.families
+    : [];
 
-  async function loadResidents() {
-    setLoading(true);
+  return families.flatMap(
+   (family: Family, familyIndex: number) => {
+      const members = Array.isArray(family?.members)
+        ? family.members
+        : [];
 
-    const { data, error } = await supabase
-      .from("resident_overview")
-      .select("*")
-      .order("resident_id", { ascending: true });
+      return members.map(
+       (member: Resident, memberIndex: number) => ({
+          resident_id:
+            `${recordIndex}-${familyIndex}-${memberIndex}`,
 
-    if (error) {
-      console.error("Error loading residents:", error);
-      setResidents([]);
-    } else {
-      setResidents(data || []);
+         household_id:
+  record.householdNumber || null,
+
+          first_name: member?.firstName || null,
+          middle_name: member?.middleName || null,
+          last_name: member?.lastName || null,
+          suffix: member?.suffix || null,
+
+          sex: member?.sex || null,
+          birth_date: member?.birthDate || null,
+          civil_status: member?.civilStatus || null,
+
+          relationship:
+            member?.familyRelationship || null,
+
+          resident_type:
+            member?.familyRelationship === "Family Head"
+              ? "Family Head"
+              : "Family Member",
+
+          has_own_family:
+            member?.hasOwnFamily === "Yes"
+              ? true
+              : member?.hasOwnFamily === "No"
+              ? false
+              : null,
+        })
+      );
     }
-
-    setLoading(false);
-  }
+  );
+});
 
   // =========================
   // FILTER RESIDENTS
@@ -150,13 +191,11 @@ function Residents() {
           </div>
 
           <p>
-            {loading
-              ? "Loading..."
-              : `${filteredResidents.length} of ${
-                  residents.length
-                } resident${
-                  residents.length !== 1 ? "s" : ""
-                }`}
+           {`${filteredResidents.length} of ${
+  residents.length
+} resident${
+  residents.length !== 1 ? "s" : ""
+}`}
           </p>
         </div>
 
@@ -368,19 +407,9 @@ function Residents() {
             RECORDS
         ========================= */}
 
-        <div className="recent-records">
+       <div className="recent-records">
 
-          {loading ? (
-
-            <div className="recent-record-card">
-              <div className="recent-record-main">
-                <strong>
-                  Loading residents...
-                </strong>
-              </div>
-            </div>
-
-          ) : filteredResidents.length === 0 ? (
+  {filteredResidents.length === 0 ? (
 
             <div className="recent-record-card">
               <div className="recent-record-main">

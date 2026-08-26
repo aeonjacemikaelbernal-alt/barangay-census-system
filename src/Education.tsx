@@ -1,7 +1,13 @@
 import { GraduationCap, ArrowLeft } from "lucide-react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
 type EducationProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
 };
 
@@ -10,22 +16,27 @@ function Education({
   onBackToDashboard,
 }: EducationProps) {
 
+  type EducationResident = Resident & {
+  householdNumber: string;
+  familyName: string;
+};
+
   const safeRecords = Array.isArray(censusRecords)
     ? censusRecords.filter(Boolean)
     : [];
 
   const allResidents = safeRecords.flatMap(
-    (record: any) => {
+   (record: CensusData) => {
       const families = Array.isArray(record?.families)
         ? record.families
         : [];
 
-      return families.flatMap((family: any) => {
+      return families.flatMap((family: Family) => {
         const members = Array.isArray(family?.members)
           ? family.members
           : [];
 
-        return members.map((member: any) => ({
+        return members.map((member: Resident) => ({
           ...member,
           householdNumber:
             record?.householdNumber || "—",
@@ -42,20 +53,17 @@ function Education({
 
   const educationCounts: Record<string, number> = {};
 
-  allResidents.forEach((resident: any) => {
-
+allResidents.forEach(
+  (resident: EducationResident) => {
     const education =
-      resident?.education ||
-      resident?.educationalAttainment ||
-      resident?.highestEducation;
+      resident.education || "Not Specified";
 
-    const label = String(
-      education || "Not Specified"
-    ).trim();
+    const label = String(education).trim();
 
     educationCounts[label] =
       (educationCounts[label] || 0) + 1;
-  });
+  }
+);
 
   const educationSummary = Object.entries(
     educationCounts
@@ -487,7 +495,7 @@ function Education({
 
             {allResidents.map(
               (
-                resident: any,
+                resident: EducationResident,
                 index: number
               ) => {
 
@@ -500,11 +508,8 @@ function Education({
                   .filter(Boolean)
                   .join(" ");
 
-                const education =
-                  resident?.education ||
-                  resident?.educationalAttainment ||
-                  resident?.highestEducation ||
-                  "Not Specified";
+               const education =
+  resident.education || "Not Specified";
 
                 return (
 

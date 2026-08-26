@@ -1,8 +1,19 @@
 import { Wrench, ArrowLeft } from "lucide-react";
 
+import type {
+  CensusData,
+  Family,
+  Resident,
+} from "./types/census";
+
 type SkillsProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
+};
+
+type SkillsResident = Resident & {
+  householdNumber: string;
+  familyName: string;
 };
 
 function Skills({
@@ -14,25 +25,30 @@ function Skills({
     ? censusRecords.filter(Boolean)
     : [];
 
-  const allResidents = safeRecords.flatMap(
-    (record: any) => {
-      const families = Array.isArray(record?.families)
+ const allResidents: SkillsResident[] =
+  safeRecords.flatMap(
+    (record: CensusData) => {
+      const families = Array.isArray(record.families)
         ? record.families
         : [];
 
-      return families.flatMap((family: any) => {
-        const members = Array.isArray(family?.members)
-          ? family.members
-          : [];
+      return families.flatMap(
+        (family: Family) => {
+          const members = Array.isArray(family.members)
+            ? family.members
+            : [];
 
-        return members.map((member: any) => ({
-          ...member,
-          householdNumber:
-            record?.householdNumber || "—",
-          familyName:
-            family?.familyName || "Unnamed Family",
-        }));
-      });
+          return members.map(
+            (member: Resident) => ({
+              ...member,
+              householdNumber:
+                record.householdNumber || "—",
+              familyName:
+                family.familyName || "Unnamed Family",
+            })
+          );
+        }
+      );
     }
   );
 
@@ -184,7 +200,7 @@ function Skills({
         >
 
           {allResidents.map(
-            (resident: any, index: number) => {
+           (resident: SkillsResident, index: number) => {
 
               const fullName = [
                 resident?.firstName,
@@ -195,40 +211,12 @@ function Skills({
                 .filter(Boolean)
                 .join(" ");
 
-              const residentSkills: any[] = [];
-
-              if (Array.isArray(resident?.skills)) {
-                residentSkills.push(
-                  ...resident.skills
-                );
-              } else if (resident?.skills) {
-                residentSkills.push(
-                  resident.skills
-                );
-              }
-
-              if (resident?.skill) {
-                residentSkills.push(
-                  resident.skill
-                );
-              }
-
-              const skillLabels = residentSkills
-                .map((skill: any) => {
-
-                  if (!skill) return "";
-
-                  if (typeof skill === "object") {
-                    return String(
-                      skill?.skillName ||
-                      skill?.name ||
-                      ""
-                    ).trim();
-                  }
-
-                  return String(skill).trim();
-                })
-                .filter(Boolean);
+             const skillLabels = resident.skills
+  ? resident.skills
+      .split(",")
+      .map((skill) => skill.trim())
+      .filter(Boolean)
+  : [];
 
               return (
 

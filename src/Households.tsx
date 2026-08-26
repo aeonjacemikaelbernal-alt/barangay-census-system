@@ -4,9 +4,13 @@ import {
   Users,
   ArrowLeft,
 } from "lucide-react";
+import type {
+  CensusData,
+  Family,
+} from "./types/census";
 
 type HouseholdsProps = {
-  censusRecords: any[];
+  censusRecords: CensusData[];
   onBackToDashboard: () => void;
 };
 
@@ -15,8 +19,12 @@ function Households({
   onBackToDashboard,
 }: HouseholdsProps) {
 
-  const safeRecords = Array.isArray(censusRecords)
-    ? censusRecords.filter(Boolean)
+ const safeRecords: CensusData[] =
+  Array.isArray(censusRecords)
+    ? censusRecords.filter(
+        (record): record is CensusData =>
+          Boolean(record)
+      )
     : [];
 
   // =========================
@@ -24,7 +32,7 @@ function Households({
   // =========================
 
   const totalFamilies = safeRecords.reduce(
-    (total: number, record: any) => {
+  (total: number, record: CensusData) => {
       const families = Array.isArray(record?.families)
         ? record.families
         : [];
@@ -39,7 +47,7 @@ function Households({
   // =========================
 
   const totalResidents = safeRecords.reduce(
-    (total: number, record: any) => {
+  (total: number, record: CensusData) => {
       const families = Array.isArray(record?.families)
         ? record.families
         : [];
@@ -49,7 +57,7 @@ function Households({
         families.reduce(
           (
             familyTotal: number,
-            family: any
+           family: Family
           ) => {
             const members = Array.isArray(
               family?.members
@@ -372,11 +380,11 @@ function Households({
           }}
         >
 
-          {safeRecords.map(
-            (
-              record: any,
-              index: number
-            ) => {
+         {safeRecords.map(
+  (
+    record: CensusData,
+    index: number
+  ) => {
 
               const household =
                 record?.household || {};
@@ -390,7 +398,7 @@ function Households({
                 families.reduce(
                   (
                     total: number,
-                    family: any
+                   family: Family
                   ) => {
 
                     const members =
