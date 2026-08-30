@@ -11,7 +11,7 @@ import type {
   CensusData,
   Family,
   Resident,
-} from "./types/census";
+} from "../../types/census";
 
 type VotersProps = {
   censusRecords: CensusData[];

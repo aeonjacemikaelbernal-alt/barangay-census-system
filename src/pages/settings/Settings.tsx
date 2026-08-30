@@ -22,7 +22,7 @@ import {
   Monitor,
 } from "lucide-react";
 
-import { supabase } from "./supabaseClient";
+import { supabase } from "../../services/supabaseClient";
 
 type SettingsProps = {
   email?: string;

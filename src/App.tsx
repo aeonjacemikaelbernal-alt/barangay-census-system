@@ -5,27 +5,27 @@ import type {
   CensusRecord,
 } from "./types/census";
 
-import MainDashboard from "./MainDashboard";
-import HouseholdPrototype from "./HouseholdPrototype";
-import Residents from "./Residents";
-import Households from "./Households";
-import Families from "./Families";
-import Education from "./Education";
-import Occupation from "./Occupation";
-import Skills from "./Skills";
-import Income from "./Income";
-import Voters from "./Voters";
-import FourPs from "./FourPs";
-import Sidebar from "./Sidebar";
-import Login from "./Login";
-import Settings from "./Settings";
+import MainDashboard from "./pages/dashboard/MainDashboard";
+import HouseholdPrototype from "./pages/census/HouseholdPrototype";
+import Residents from "./pages/residents/Residents";
+import Households from "./pages/households/Households";
+import Families from "./pages/families/Families";
+import Education from "./pages/education/Education";
+import Occupation from "./pages/occupation/Occupation";
+import Skills from "./pages/skills/Skills";
+import Income from "./pages/income/Income";
+import Voters from "./pages/voters/Voters";
+import FourPs from "./pages/fourps/FourPs";
+import Sidebar from "./components/sidebar/Sidebar";
+import Login from "./pages/login/Login";
+import Settings from "./pages/settings/Settings";
 
-import type { Page } from "./Sidebar";import {
+import type { Page } from "./components/sidebar/Sidebar";import {
   getCensusRecords,
   saveCensusRecord,
-} from "./censusStorage";
+} from "./services/censusStorage";
 
-import { supabase } from "./supabaseClient";
+import { supabase } from "./services/supabaseClient";
 
 function App() {
   const [page, setPage] = useState<Page>("dashboard");
@@ -240,40 +240,65 @@ if (page === "residents") {
   );
 }
 
-  if (page === "census") {
-    return (
-      <div className="census-page-wrapper">
+ if (page === "census") {
+  return (
+    <div className="dashboard-page census-layout-page">
 
-        <div
-          style={{
-            maxWidth: "1240px",
-            margin: "20px auto 0",
-            padding: "0 20px",
-          }}
-        >
-          <button
-            onClick={() => setPage("dashboard")}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "#176b57",
-              fontSize: "16px",
-              fontWeight: 600,
-              cursor: "pointer",
-              padding: "10px 0",
-            }}
-          >
-            ← Back to Dashboard
-          </button>
+      <Sidebar
+        page={page}
+        onNavigate={setPage}
+        onNewCensus={() => setPage("census")}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
+      />
+
+      <main className="dashboard-main census-main-shell">
+
+        <div className="census-page-topbar">
+
+          <div>
+            <h1>General Census Registration</h1>
+
+            <p>
+              Please provide accurate and complete
+              information.
+            </p>
+          </div>
+
+          <div className="census-topbar-actions">
+
+            <div className="census-admin-info">
+              <div className="census-admin-avatar">
+                A
+              </div>
+
+              <div>
+                <strong>Admin</strong>
+                <span>System Administrator</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="census-back-dashboard"
+              onClick={() => setPage("dashboard")}
+            >
+              ← Back to Dashboard
+            </button>
+
+          </div>
+
         </div>
 
         <HouseholdPrototype
           onSubmitCensus={handleCensusSubmit}
         />
 
-      </div>
-    );
-  }
+      </main>
+
+    </div>
+  );
+}
 
   if (page === "dashboard") {
   return (

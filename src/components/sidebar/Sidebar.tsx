@@ -3,7 +3,7 @@ import {
   useState,
 } from "react";
 
-import barangayLogo from "./assets/barangay-pambuhan-logo.png";
+import barangayLogo from "../../assets/barangay-pambuhan-logo.png";
 
 import {
   Home,

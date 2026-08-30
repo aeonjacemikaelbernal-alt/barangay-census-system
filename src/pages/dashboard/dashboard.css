@@ -442,50 +442,179 @@
 
 .dashboard-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 25px;
-  margin-bottom: 30px;
+  gap: 28px;
+
+  margin-bottom: 28px;
+
+  padding: 4px 2px;
+}
+
+.dashboard-header-copy {
+  min-width: 0;
 }
 
 .dashboard-overline {
-  margin: 0 0 7px;
+  margin: 0 0 8px;
+
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-  color: #7e8a9f;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+
+  color: #7183a0;
 }
 
 .dashboard-header h1 {
   margin: 0;
-  font-size: 32px;
-  letter-spacing: -0.025em;
+
+  font-size: clamp(28px, 2.2vw, 36px);
+  line-height: 1.08;
+
+  font-weight: 800;
+  letter-spacing: -0.035em;
+
+  color: #102a56;
 }
 
 .dashboard-description {
-  margin: 8px 0 0;
-  color: #758094;
+  margin: 9px 0 0;
+
+  max-width: 600px;
+
   font-size: 14px;
+  line-height: 1.6;
+
+  color: #6f819c;
 }
 
+
+/* RIGHT SIDE */
+
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 12px;
+
+  flex-shrink: 0;
+}
+
+
+/* DATE */
+
+.dashboard-date-card {
+  min-width: 158px;
+
+  padding: 11px 15px;
+
+  background: rgba(255, 255, 255, 0.88);
+
+  border: 1px solid #dce8f5;
+  border-radius: 14px;
+
+  box-shadow:
+    0 7px 20px rgba(30, 70, 120, 0.06);
+
+  display: flex;
+  flex-direction: column;
+
+  text-align: left;
+}
+
+.dashboard-date-card span {
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.1em;
+
+  color: #8a99ae;
+}
+
+.dashboard-date-card strong {
+  margin-top: 3px;
+
+  font-size: 13px;
+  font-weight: 750;
+
+  color: #17345f;
+}
+
+.dashboard-date-card small {
+  margin-top: 2px;
+
+  font-size: 10px;
+
+  color: #8998ac;
+}
+
+
+/* NEW CENSUS BUTTON */
+
 .new-census-button {
+  min-height: 47px;
+
   border: 0;
-  background: #2367d1;
-  color: white;
-  border-radius: 10px;
-  padding: 12px 18px;
-  font-weight: 600;
+  border-radius: 13px;
+
+  padding: 0 19px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  background:
+    linear-gradient(
+      110deg,
+      #1677f2 0%,
+      #2378dc 55%,
+      #1266d6 100%
+    );
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 700;
+
   cursor: pointer;
   white-space: nowrap;
-  transition: 0.2s ease;
+
+  box-shadow:
+    0 9px 22px rgba(22, 119, 242, 0.2);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .new-census-button:hover {
-  background: #1855b2;
+  transform: translateY(-2px);
+
+  background:
+    linear-gradient(
+      110deg,
+      #116ee9,
+      #185fc7
+    );
+
+  box-shadow:
+    0 12px 27px rgba(22, 119, 242, 0.25);
+}
+
+.new-census-button:active {
+  transform: translateY(0);
 }
 
 .new-census-button span {
-  margin-right: 6px;
+  margin: 0;
+
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 400;
 }
 
 /* =============================================================
@@ -494,43 +623,76 @@
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  grid-template-columns:
+    repeat(4, minmax(210px, 1fr));
+
   gap: 16px;
-  margin-bottom: 34px;
+
+  margin-bottom: 38px;
 }
 
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #e7eaf0;
-  border-radius: 14px;
-  padding: 20px;
+  position: relative;
+
+  min-height: 118px;
+
+  padding: 20px 21px;
+
   display: flex;
   align-items: center;
-  gap: 15px;
-  min-height: 125px;
-  transition: transform 0.25s ease,
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
+
+  gap: 16px;
+
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(248, 252, 255, 0.92)
+    );
+
+  border: 1px solid #dfeaf5;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 8px 25px rgba(33, 76, 125, 0.055);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+
+  border-color: #c9ddf2;
+
+  box-shadow:
+    0 14px 30px rgba(32, 73, 120, 0.1);
 }
 
 .stat-icon {
-  background: #f0f4f9;
-  font-size: 21px;
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  transition: transform 0.3s ease,
-    box-shadow 0.3s ease;
+
+  flex-shrink: 0;
+
+  border-radius: 16px;
+
+  background: #f0f4f9;
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .stat-content {
@@ -547,9 +709,17 @@
 
 .stat-content strong {
   display: block;
+
   margin-top: 5px;
-  font-size: 28px;
+
+  font-size: 30px;
   line-height: 1;
+
+  font-weight: 800;
+
+  letter-spacing: -0.03em;
+
+  color: #102a56;
 }
 
 .stat-content small {
@@ -673,8 +843,10 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+
   gap: 20px;
-  margin-bottom: 15px;
+
+  margin-bottom: 14px;
 }
 
 .section-heading > div > span {
@@ -702,64 +874,113 @@
 .dashboard-chart-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
+  align-items: stretch;
 }
 
 .dashboard-chart-card {
-  min-height: 250px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  min-height: 240px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(249, 252, 255, 0.95)
+    );
+
+  border: 1px solid #dfe9f4;
   border-radius: 18px;
-  padding: 28px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+
+  padding: 22px 24px;
+
+  box-shadow:
+    0 8px 24px rgba(31, 72, 120, 0.055);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.dashboard-chart-card:hover {
+  transform: translateY(-2px);
+
+  border-color: #cbdff2;
+
+  box-shadow:
+    0 13px 28px rgba(31, 72, 120, 0.09);
 }
 
 .chart-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+
   gap: 12px;
-  margin-bottom: 20px;
+
+  margin-bottom: 16px;
 }
 
 .chart-card-header span:first-child {
   display: block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #8a94a6;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+
+  color: #8392a8;
+
 }
 
 .chart-card-header h3 {
   margin: 5px 0 0;
-  font-size: 15px;
-  color: #172033;
+
+  font-size: 16px;
+  font-weight: 750;
+
+  color: #16335d;
 }
 
 .donut-chart-layout {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 22px;
-  min-height: 155px;
+
+  gap: 28px;
+
+  min-height: 150px;
 }
 
 .donut-chart {
-  width: 138px;
-  height: 138px;
+  width: 128px;
+  height: 128px;
+
+  flex-shrink: 0;
+
   border-radius: 50%;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   position: relative;
+
+  box-shadow:
+    0 7px 18px rgba(32, 75, 125, 0.06);
 }
 
 .donut-chart::after {
   content: "";
+
   position: absolute;
-  inset: 24px;
+  inset: 22px;
+
   background: #ffffff;
+
   border-radius: 50%;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(215, 227, 240, 0.7);
 }
 
 .donut-chart-center {
@@ -772,9 +993,12 @@
 }
 
 .donut-chart-center strong {
-  font-size: 25px;
+  font-size: 27px;
   line-height: 1;
-  color: #172033;
+
+  font-weight: 800;
+
+  color: #132f58;
 }
 
 .donut-chart-center span {
@@ -786,17 +1010,25 @@
 .chart-legend {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+
+  gap: 12px;
+
+  min-width: 120px;
 }
 
 .legend-item {
   display: grid;
-  grid-template-columns: 9px auto auto;
+  grid-template-columns: 9px 1fr auto;
+
   align-items: center;
-  gap: 8px;
-  min-width: 105px;
+
+  gap: 9px;
+
+  min-width: 115px;
+
   font-size: 12px;
-  color: #697386;
+
+  color: #687a92;
 }
 
 .legend-item strong {
@@ -830,8 +1062,10 @@
 .age-chart {
   display: flex;
   flex-direction: column;
-  gap: 17px;
-  padding-top: 5px;
+
+  gap: 15px;
+
+  padding-top: 4px;
 }
 
 .age-bar-row {
@@ -853,16 +1087,26 @@
 
 .age-bar-track {
   width: 100%;
-  height: 8px;
-  border-radius: 10px;
-  background: #edf1f5;
+  height: 9px;
+
+  border-radius: 999px;
+
+  background: #eaf0f6;
+
   overflow: hidden;
+
+  box-shadow:
+    inset 0 1px 2px rgba(30, 60, 95, 0.04);
 }
 
 .age-bar {
   height: 100%;
-  border-radius: 10px;
-  transition: width 0.35s ease;
+
+  border-radius: 999px;
+
+  transition:
+    width 0.35s ease,
+    filter 0.2s ease;
 }
 
 .dashboard-chart-section {
@@ -1831,3 +2075,7 @@
   }
 
 }
+
+
+/* Dashboard population metrics are computed from unique resident identities
+   in MainDashboard.tsx. Existing visual styles intentionally preserved. */

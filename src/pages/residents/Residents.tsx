@@ -1,11 +1,11 @@
 import { useState } from "react";
-import "./dashboard.css";
+import "../dashboard/dashboard.css";
 import { UserRound, Cake, Vote, Search, X } from "lucide-react";
 import type {
   CensusData,
   Family,
   Resident,
-} from "./types/census";
+} from "../../types/census";
 
 
 type ResidentRow = {

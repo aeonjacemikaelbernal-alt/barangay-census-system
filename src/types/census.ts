@@ -1,4 +1,5 @@
 export type Resident = {
+  residentId: string;
   firstName: string;
   middleName: string;
   lastName: string;

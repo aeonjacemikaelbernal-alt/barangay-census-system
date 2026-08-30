@@ -7,7 +7,7 @@ import {
 import type {
   CensusData,
   Family,
-} from "./types/census";
+} from "../../types/census";
 
 type HouseholdsProps = {
   censusRecords: CensusData[];

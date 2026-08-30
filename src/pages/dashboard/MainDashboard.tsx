@@ -1,9 +1,9 @@
 import { useState } from "react";
 import "./dashboard.css";
-import Sidebar from "./Sidebar";
-import barangayLogo from "./assets/barangay-pambuhan-logo.png";
+import Sidebar from "../../components/sidebar/Sidebar";
+import barangayLogo from "../../assets/barangay-pambuhan-logo.png";
 
-import type { Page } from "./Sidebar";
+import type { Page } from "../../components/sidebar/Sidebar";
 import {
   Users,
   House,
@@ -26,18 +26,17 @@ import type {
   CensusData,
   Family,
   Resident,
-} from "./types/census";
+} from "../../types/census";
 
 type MainDashboardProps = {
+  censusRecords: CensusData[];
   onNewCensus: () => void;
   onNavigate: (page: Page) => void;
 
   sidebarCollapsed: boolean;
-onSidebarCollapsedChange: (
-  collapsed: boolean
-) => void;
-
-  censusRecords: CensusData[];
+  onSidebarCollapsedChange: (
+    collapsed: boolean
+  ) => void;
 };
 
 type LargestHousehold = {
@@ -50,12 +49,70 @@ type HouseholdTrendItem = {
   value: number;
 };
 
+type ResidentWithIdentity = Resident & {
+  residentId?: string;
+};
+
+const getResidentIdentity = (
+  record: CensusData,
+  member: Resident
+): string => {
+  const residentId = String(
+    (member as ResidentWithIdentity).residentId || ""
+  ).trim();
+
+  if (residentId) {
+    return residentId;
+  }
+
+  const fallbackName = [
+    member.firstName,
+    member.middleName,
+    member.lastName,
+    member.suffix,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim()
+    .toLowerCase();
+
+  return [
+    record.householdNumber || "NO-HOUSEHOLD-ID",
+    fallbackName,
+    member.birthDate || "",
+    member.sex || "",
+  ].join("|");
+};
+
+const getUniqueResidentsForRecord = (record: CensusData): Resident[] => {
+  const unique = new Map<string, Resident>();
+  const families = Array.isArray(record.families)
+    ? record.families
+    : [];
+
+  families.forEach((family) => {
+    const members = Array.isArray(family.members)
+      ? family.members
+      : [];
+
+    members.forEach((member) => {
+      const identity = getResidentIdentity(record, member);
+
+      if (!unique.has(identity)) {
+        unique.set(identity, member);
+      }
+    });
+  });
+
+  return Array.from(unique.values());
+};
+
 function MainDashboard({
+  censusRecords,
   onNewCensus,
   onNavigate,
   sidebarCollapsed,
   onSidebarCollapsedChange,
-  censusRecords,
 }: MainDashboardProps) {
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,13 +138,23 @@ const allFamilies: Family[] =
         : []
   );
 
-const allMembers: Resident[] =
-  allFamilies.flatMap(
-    (family: Family) =>
-      Array.isArray(family.members)
-        ? family.members
-        : []
-  );
+const uniqueMemberMap = new Map<string, Resident>();
+
+safeRecords.forEach((record: CensusData) => {
+  const uniqueResidents = getUniqueResidentsForRecord(record);
+
+  uniqueResidents.forEach((member) => {
+    const identity = getResidentIdentity(record, member);
+
+    if (!uniqueMemberMap.has(identity)) {
+      uniqueMemberMap.set(identity, member);
+    }
+  });
+});
+
+const allMembers: Resident[] = Array.from(
+  uniqueMemberMap.values()
+);
 
 const totalFamilies = allFamilies.length;
 
@@ -113,16 +180,12 @@ const totalRegisteredVoters = allMembers.filter(
       .toLowerCase() === "registered voter"
 ).length;
 
-const totalChildren = allFamilies.reduce(
-  (total: number, family: Family) => {
-    const members = Array.isArray(family?.members)
-      ? family.members
-      : [];
-
-    return total + Math.max(members.length - 2, 0);
-  },
-  0
-);
+const totalChildren = allMembers.filter(
+  (member: Resident) =>
+    String(member?.familyRelationship || "")
+      .trim()
+      .toLowerCase() === "child"
+).length;
 
 // =====================================================
 // EDUCATION CHART DATA
@@ -360,23 +423,10 @@ const largestHousehold =
       largest,
       record: CensusData
     ) => {
-      const families = Array.isArray(record.families)
-        ? record.families
-        : [];
+      
 
-      const residentCount = families.reduce(
-        (
-          total: number,
-          family: Family
-        ) => {
-          const members = Array.isArray(family.members)
-            ? family.members
-            : [];
-
-          return total + members.length;
-        },
-        0
-      );
+      const residentCount =
+        getUniqueResidentsForRecord(record).length;
 
       if (
         !largest ||
@@ -408,23 +458,9 @@ const householdTrend: HouseholdTrendItem[] =
         record: CensusData,
         index: number
       ) => {
-        const families = Array.isArray(record.families)
-          ? record.families
-          : [];
 
-        const residents = families.reduce(
-          (
-            total: number,
-            family: Family
-          ) => {
-            const members = Array.isArray(family.members)
-              ? family.members
-              : [];
-
-            return total + members.length;
-          },
-          0
-        );
+        const residents =
+          getUniqueResidentsForRecord(record).length;
 
         return {
           label:
@@ -473,9 +509,7 @@ const filteredMembers = allMembers.filter((member: Resident) => {
   onNavigate={onNavigate}
   onNewCensus={onNewCensus}
   collapsed={sidebarCollapsed}
-  onCollapsedChange={
-    onSidebarCollapsedChange
-  }
+  onCollapsedChange={onSidebarCollapsedChange}
 />
 
       {/* =====================================================
@@ -488,34 +522,62 @@ const filteredMembers = allMembers.filter((member: Resident) => {
             TOP HEADER
         ================================================= */}
 
-        <header className="dashboard-header">
+       <header className="dashboard-header">
 
-          <div>
+  <div className="dashboard-header-copy">
 
-            <p className="dashboard-overline">
-              BARANGAY MANAGEMENT SYSTEM
-            </p>
+    <p className="dashboard-overline">
+      BARANGAY MANAGEMENT SYSTEM
+    </p>
 
-            <h1>
-              Main Dashboard
-            </h1>
+    <h1>
+      Main Dashboard
+    </h1>
 
-            <p className="dashboard-description">
-              Overview of residents, households,
-              families and barangay census data.
-            </p>
+    <p className="dashboard-description">
+      Overview of residents, households, families
+      and barangay census data.
+    </p>
 
-          </div>
+  </div>
 
-          <button
-            className="new-census-button"
-            onClick={onNewCensus}
-          >
-            <span>＋</span>
-            New Census
-          </button>
 
-        </header>
+  <div className="dashboard-header-actions">
+
+    <div className="dashboard-date-card">
+
+      <span>
+        TODAY
+      </span>
+
+      <strong>
+        {new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}
+      </strong>
+
+      <small>
+        {new Date().toLocaleDateString("en-US", {
+          weekday: "long",
+        })}
+      </small>
+
+    </div>
+
+
+    <button
+      className="new-census-button"
+      onClick={onNewCensus}
+    >
+      <span>＋</span>
+      New Census
+    </button>
+
+  </div>
+
+</header>
 
         {/* =================================================
             SUMMARY CARDS
@@ -2015,25 +2077,7 @@ const filteredMembers = allMembers.filter((member: Resident) => {
               : [];
 
           const residents =
-            families.reduce(
-              (
-                total: number,
-               family: Family
-              ) => {
-
-                const members =
-                  Array.isArray(
-                    family?.members
-                  )
-                    ? family.members
-                    : [];
-
-                return (
-                  total + members.length
-                );
-              },
-              0
-            );
+            getUniqueResidentsForRecord(record).length;
 
           return (
 

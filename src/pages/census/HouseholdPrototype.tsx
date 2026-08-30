@@ -1,13 +1,57 @@
-import { useEffect, useState } from "react";
-import "./App.css";
-import { House } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import "../../App.css";
+import {
+  House,
+  UsersRound,
+  Info,
+  ClipboardList,
+  CheckCircle2,
+  ArrowRight,
+} from "lucide-react";
+
 import type {
   Resident,
   Family,
   CensusData,
-} from "./types/census";
+} from "../../types/census";
 
- 
+type ResidentWithIdentity = Resident & {
+  residentId?: string;
+};
+
+function generateHouseholdNumber(): string {
+  const now = new Date();
+  const datePart = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("");
+
+  const randomPart =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().split("-")[0].toUpperCase()
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+          .slice(-8)
+          .toUpperCase();
+
+  return `HH-${datePart}-${randomPart}`;
+}
+
+function generateHouseNumber(householdNumber: string): string {
+  return `HOUSE-${householdNumber.replace(/^HH-/, "")}`;
+}
+
+function getResidentId(member: Resident): string {
+  return String((member as ResidentWithIdentity).residentId || "");
+}
+
+function makeResidentId(
+  householdNumber: string,
+  sequence: number
+): string {
+  return `${householdNumber}-R${String(sequence).padStart(3, "0")}`;
+}
+
 const createResident = (): Resident => ({
   firstName: "",
   middleName: "",
@@ -60,7 +104,8 @@ const createResident = (): Resident => ({
   familyMemberName: "",
 familyRelationship: "",
 familyMemberStatus: "",
-});
+residentId: "",
+} as Resident);
 function calculateAge(birthDate: string): number | "" {
   if (!birthDate) return "";
 
@@ -141,55 +186,25 @@ type HouseholdPrototypeProps = {
   onSubmitCensus: (data: CensusData) => void;
 };
 
-function splitFullName(fullName: string) {
-  const parts = fullName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return {
-      firstName: "",
-      middleName: "",
-      lastName: "",
-    };
-  }
-
-  if (parts.length === 1) {
-    return {
-      firstName: parts[0],
-      middleName: "",
-      lastName: "",
-    };
-  }
-
-  if (parts.length === 2) {
-    return {
-      firstName: parts[0],
-      middleName: "",
-      lastName: parts[1],
-    };
-  }
-
-  return {
-    firstName: parts[0],
-    middleName: parts.slice(1, -1).join(" "),
-    lastName: parts[parts.length - 1],
-  };
-}
-
 function HouseholdPrototype({
   onSubmitCensus,
 }: HouseholdPrototypeProps) {
+
+  const [censusStep, setCensusStep] = useState<
+  "household" | "family" | "resident" | "review"
+>("household");
+
   /* =====================================================
      HOUSEHOLD INFORMATION
   ===================================================== */
 
-  const [householdNumber, setHouseholdNumber] =
-    useState("");
+  const [householdNumber] = useState(() =>
+    generateHouseholdNumber()
+  );
 
-  const [houseNumber, setHouseNumber] =
-    useState("");
+  const [houseNumber] = useState(() =>
+    generateHouseNumber(householdNumber)
+  );
 
   const [street, setStreet] =
     useState("");
@@ -352,10 +367,45 @@ useEffect(() => {
 
   const [activeMemberIndex, setActiveMemberIndex] = useState(0);
 
- const addFamilyMember = (familyIndex: number) => {
+  const [isMemberEditorOpen, setIsMemberEditorOpen] =
+  useState(false);
+
+const addMemberLockRef = useRef(false);
+
+const finalSubmitButtonRef = useRef<HTMLButtonElement | null>(null);
+const residentNavLockRef = useRef(false);
+const [expandedReviewFamilyIndex, setExpandedReviewFamilyIndex] = useState<number | null>(null);
+
+const runResidentNavigation = (action: () => void) => {
+  if (residentNavLockRef.current) {
+    return;
+  }
+
+  residentNavLockRef.current = true;
+  action();
+
+  window.setTimeout(() => {
+    residentNavLockRef.current = false;
+  }, 450);
+};
+
+  const addFamilyMember = (familyIndex: number) => {
+  if (addMemberLockRef.current) {
+    return;
+  }
+
+  const targetFamily = families[familyIndex];
+
+  if (!targetFamily) {
+    return;
+  }
+
+  addMemberLockRef.current = true;
+
+  const newMemberIndex = targetFamily.members.length;
+
   setFamilies((current) => {
     const updated = [...current];
-
     const family = updated[familyIndex];
 
     if (!family) {
@@ -373,11 +423,96 @@ useEffect(() => {
     return updated;
   });
 
-  setActiveMemberIndex(
-  (current) => current + 1
-);
+  setActiveMemberIndex(newMemberIndex);
+  setIsMemberEditorOpen(true);
 
+  window.setTimeout(() => {
+    addMemberLockRef.current = false;
+  }, 400);
 };
+
+useEffect(() => {
+  setFamilies((current) => {
+    let changed = false;
+    const updated = current.map((family) => ({
+      ...family,
+      members: family.members.map((member) => ({ ...member })),
+    }));
+
+    let maxSequence = 0;
+
+    updated.forEach((family) => {
+      family.members.forEach((member) => {
+        const residentId = getResidentId(member);
+        const match = residentId.match(/-R(\d+)$/);
+
+        if (match) {
+          maxSequence = Math.max(maxSequence, Number(match[1]));
+        }
+      });
+    });
+
+    let nextSequence = maxSequence + 1;
+
+    updated.forEach((family) => {
+      family.members.forEach((member, memberIndex) => {
+        const isLinkedHead = Boolean(
+          family.linkedResidentKey && memberIndex === 0
+        );
+
+        if (!isLinkedHead && !getResidentId(member)) {
+          (member as ResidentWithIdentity).residentId =
+            makeResidentId(householdNumber, nextSequence);
+          nextSequence += 1;
+          changed = true;
+        }
+      });
+    });
+
+    updated.forEach((family) => {
+      if (!family.linkedResidentKey || family.members.length === 0) {
+        return;
+      }
+
+      const [sourceFamilyIdText, sourceMemberIndexText] =
+        family.linkedResidentKey.split("-");
+
+      const sourceFamilyId = Number(sourceFamilyIdText);
+      const sourceMemberIndex = Number(sourceMemberIndexText);
+      const sourceFamily = updated.find(
+        (familyItem) => familyItem.id === sourceFamilyId
+      );
+      const sourceResident = sourceFamily?.members[sourceMemberIndex];
+
+      if (!sourceResident) {
+        return;
+      }
+
+      if (!getResidentId(sourceResident)) {
+        (sourceResident as ResidentWithIdentity).residentId =
+          makeResidentId(householdNumber, nextSequence);
+        nextSequence += 1;
+        changed = true;
+      }
+
+      const syncedHead = {
+        ...sourceResident,
+        residentId: getResidentId(sourceResident),
+        familyRelationship: "Family Head",
+        hasOwnFamily: "",
+      } as ResidentWithIdentity;
+
+      const currentHead = family.members[0] as ResidentWithIdentity;
+
+      if (JSON.stringify(currentHead) !== JSON.stringify(syncedHead)) {
+        family.members[0] = syncedHead as Resident;
+        changed = true;
+      }
+    });
+
+    return changed ? updated : current;
+  });
+}, [families, householdNumber]);
 
 
   /* =====================================================
@@ -436,6 +571,128 @@ useEffect(() => {
       return updated;
     });
   };
+
+
+  const updateResidentNamePart = (
+    familyIndex: number,
+    memberIndex: number,
+    field: "firstName" | "middleName" | "lastName" | "suffix",
+    value: string
+  ) => {
+    setFamilies((current) => {
+      const updated = [...current];
+      const family = updated[familyIndex];
+
+      if (!family) {
+        return current;
+      }
+
+      const members = [...family.members];
+      const existingMember = members[memberIndex];
+
+      if (!existingMember) {
+        return current;
+      }
+
+      const updatedMember = {
+        ...existingMember,
+        [field]: value,
+      };
+
+      updatedMember.familyMemberName = [
+        updatedMember.firstName,
+        updatedMember.middleName,
+        updatedMember.lastName,
+        updatedMember.suffix,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      members[memberIndex] = updatedMember;
+
+      updated[familyIndex] = {
+        ...family,
+        members,
+      };
+
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    setFamilies((current) => {
+      let changed = false;
+
+      const updated = current.map((family) => ({
+        ...family,
+        members: family.members.map((member) => {
+          const age = calculateAge(member.birthDate);
+
+          if (typeof age !== "number") return member;
+
+          const nextMember = { ...member } as Resident;
+
+          // 0–4: not yet of school age.
+          if (age <= 4) {
+            nextMember.education = "Not Yet of School Age";
+            nextMember.schoolStatus = "Not Applicable";
+            nextMember.schoolLevel = "";
+            nextMember.elementarySchool = "";
+            nextMember.juniorHighSchool = "";
+            nextMember.seniorHighSchool = "";
+            nextMember.collegeUniversity = "";
+            nextMember.postgraduateSchool = "";
+            nextMember.shsStrand = "";
+            nextMember.course = "";
+            nextMember.specialization = "";
+            nextMember.osyReason = "";
+            nextMember.osyOtherReason = "";
+          } else if (
+            member.education === "Not Yet of School Age" ||
+            member.schoolStatus === "Not Applicable"
+          ) {
+            nextMember.education = "";
+            nextMember.schoolStatus = "";
+          }
+
+          // 0–14: employment/livelihood is not applicable.
+          if (age <= 14) {
+            nextMember.primaryOccupation = "Not Applicable";
+            nextMember.employmentStatus = "Not Applicable";
+            nextMember.secondaryOccupations = [];
+            nextMember.employer = "";
+            nextMember.monthlyIncome = "";
+            nextMember.skills = "";
+          } else if (
+            member.primaryOccupation === "Not Applicable" ||
+            member.employmentStatus === "Not Applicable"
+          ) {
+            nextMember.primaryOccupation = "";
+            nextMember.employmentStatus = "";
+          }
+
+          // Under 18: not eligible to vote.
+          if (age < 18) {
+            nextMember.voterStatus = "Not Eligible";
+          } else if (member.voterStatus === "Not Eligible") {
+            nextMember.voterStatus = "";
+          }
+
+          // 60+: automatic senior citizen.
+          nextMember.seniorCitizen = age >= 60 ? "Yes" : "No";
+
+          if (JSON.stringify(nextMember) !== JSON.stringify(member)) {
+            changed = true;
+            return nextMember;
+          }
+
+          return member;
+        }),
+      }));
+
+      return changed ? updated : current;
+    });
+  }, [families]);
 
   /* =====================================================
      DETERMINE ROLE
@@ -545,6 +802,77 @@ const createFamilyFromChild = (
      PAGE
   ===================================================== */
 
+  const currentFamily =
+  families[activeFamilyIndex] || families[0];
+
+const currentFamilyHead =
+  currentFamily?.members.find(
+    (member) =>
+      member.familyRelationship === "Family Head"
+  );
+
+const currentFamilyHeadName = currentFamilyHead
+  ? [
+      currentFamilyHead.firstName,
+      currentFamilyHead.middleName,
+      currentFamilyHead.lastName,
+      currentFamilyHead.suffix,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  : "";
+
+const ownFamilyMembers =
+  currentFamily?.members.filter(
+    (member) => member.hasOwnFamily === "Yes"
+  ) || [];
+
+const householdRequiredValues = [
+  householdNumber,
+  houseNumber,
+  region,
+  province,
+  municipality,
+  barangay,
+  purok,
+  street,
+];
+
+const completedHouseholdFields =
+  householdRequiredValues.filter(Boolean).length;
+
+const householdProgress = Math.round(
+  (completedHouseholdFields /
+    householdRequiredValues.length) *
+    100
+);
+
+const totalResidents = families.reduce(
+  (total, family) => total + family.members.length,
+  0
+);
+
+const additionalFamilyCount = Math.max(families.length - 1, 0);
+
+const getResidentDisplayName = (member: Resident) =>
+  [
+    member.firstName,
+    member.middleName,
+    member.lastName,
+    member.suffix,
+  ]
+    .filter(Boolean)
+    .join(" ") || member.familyMemberName || "Unnamed Resident";
+
+const reviewRegionName =
+  regions.find((item) => item.code === region)?.name || region || "Not selected";
+const reviewProvinceName =
+  provinces.find((item) => item.code === province)?.name || province || "Not selected";
+const reviewMunicipalityName =
+  municipalities.find((item) => item.code === municipality)?.name || municipality || "Not selected";
+const reviewBarangayName =
+  barangays.find((item) => item.code === barangay)?.name || barangay || "Not selected";
+
   return (
     <div className="census-page">
 
@@ -604,35 +932,106 @@ const createFamilyFromChild = (
 
         </section>
 
+        <div className="census-stepper">
+
+  <div
+  className={`census-step ${
+    censusStep === "household" ? "active" : "completed"
+  }`}
+>
+    <span>1</span>
+
+    <div>
+      <strong>Household</strong>
+      <small>Information</small>
+    </div>
+  </div>
+
+  <div className="census-step-line active" />
+
+  <div
+  className={`census-step ${
+    censusStep === "family"
+      ? "active"
+      : censusStep === "resident" || censusStep === "review"
+      ? "completed"
+      : ""
+  }`}
+>
+    <span>2</span>
+
+    <div>
+      <strong>Family</strong>
+      <small>Information</small>
+    </div>
+  </div>
+
+  <div
+    className={`census-step-line ${
+      censusStep === "resident" || censusStep === "review" ? "active" : ""
+    }`}
+  />
+
+  <div
+    className={`census-step ${
+      censusStep === "resident"
+        ? "active"
+        : censusStep === "review"
+        ? "completed"
+        : ""
+    }`}
+  >
+    <span>3</span>
+
+    <div>
+      <strong>Resident</strong>
+      <small>Information</small>
+    </div>
+  </div>
+
+  <div className={`census-step-line ${censusStep === "review" ? "active" : ""}`} />
+
+  <div className={`census-step ${censusStep === "review" ? "active" : ""}`}>
+    <span>4</span>
+
+    <div>
+      <strong>Review</strong>
+      <small>& Submit</small>
+    </div>
+  </div>
+
+</div>
+
         {/* =================================================
             HOUSEHOLD INFORMATION
         ================================================= */}
 
-        {activeFamilyIndex === 0 &&
-  activeMemberIndex === 0 && ( 
+<div className={`census-workspace ${censusStep === "review" ? "review-workspace" : ""}`}>
+
+  <div className="census-workspace-main">
+
+        {censusStep === "household" && (
+
   <section className="form-card">
 
-         <div className="section-title">
+         <div className="census-card-header">
 
-  <span className="section-number">
+  <div className="census-card-icon">
+    <House size={21} strokeWidth={1.8} />
+  </div>
+
+  <div className="census-card-number">
     01
-  </span>
+  </div>
 
-  <span className="section-icon">
-    <House size={20} strokeWidth={1.8} />
-  </span>
-
-  <div>
-
-    <h3>
-      Household Information
-    </h3>
+  <div className="census-card-heading">
+    <h3>Household Information</h3>
 
     <p>
-      Basic information about the residence
+      Basic information about this household and residence
     </p>
-
   </div>
+
 
 </div>
 
@@ -650,19 +1049,9 @@ const createFamilyFromChild = (
   id="householdNumber"
   type="text"
   value={householdNumber}
-  className={
-    validationFields.householdNumber
-      ? "input-error"
-      : ""
-  }
-  onChange={(event) => {
-    setHouseholdNumber(event.target.value);
-
-    setValidationFields((prev) => ({
-      ...prev,
-      householdNumber: false,
-    }));
-  }}
+  className="readonly-field generated-id-field"
+  readOnly
+  aria-label="Automatically generated household number"
 />
 
             </div>
@@ -679,19 +1068,9 @@ const createFamilyFromChild = (
   id="houseNumber"
   type="text"
   value={houseNumber}
-  className={
-    validationFields.houseNumber
-      ? "input-error"
-      : ""
-  }
-  onChange={(event) => {
-    setHouseNumber(event.target.value);
-
-    setValidationFields((prev) => ({
-      ...prev,
-      houseNumber: false,
-    }));
-  }}
+  className="readonly-field generated-id-field"
+  readOnly
+  aria-label="Automatically generated house record number"
 />
 
             </div>
@@ -976,18 +1355,104 @@ setValidationFields((prev) => ({
 
           </div>
 
-        </section>
-        )}
+        <div className="census-step-footer">
+
+  <div className="census-step-note">
+    Fields marked with * are required.
+  </div>
+
+  <div className="census-step-actions">
+
+    <button
+      type="button"
+      className="census-cancel-button"
+    >
+      Cancel
+    </button>
+
+    <button
+      type="button"
+      className="census-continue-button"
+      onClick={() => {
+
+        const errors: Record<string, boolean> = {};
+
+        if (!householdNumber.trim()) {
+          errors.householdNumber = true;
+        }
+
+        if (!houseNumber.trim()) {
+          errors.houseNumber = true;
+        }
+
+        if (!purok.trim()) {
+          errors.purok = true;
+        }
+
+        if (!street.trim()) {
+          errors.street = true;
+        }
+
+        if (
+          !region ||
+          !province ||
+          !municipality ||
+          !barangay
+        ) {
+          setValidationError(
+            "Please complete the household location information."
+          );
+
+          setTimeout(() => {
+            setValidationError("");
+          }, 2000);
+
+          return;
+        }
+
+        if (Object.keys(errors).length > 0) {
+          setValidationFields(errors);
+
+          setValidationError(
+            "Please complete the required household information."
+          );
+
+          setTimeout(() => {
+            setValidationError("");
+          }, 2000);
+
+          return;
+        }
+
+        setValidationError("");
+        setValidationFields({});
+
+        setCensusStep("family");
+
+      }}
+    >
+      Save & Continue
+      <span>→</span>
+    </button>
+
+  </div>
+
+</div>
+
+</section>
+
+    )}
 
         {/* =================================================
             FAMILIES
         ================================================= */}
 
-       {families
-  .slice(
-    activeFamilyIndex,
-    activeFamilyIndex + 1
-  )
+      {(censusStep === "family" || censusStep === "resident") &&
+  families
+    .slice(
+      activeFamilyIndex,
+      activeFamilyIndex + 1
+    )
   .map(
     (family) => {
       const familyIndex =
@@ -996,35 +1461,44 @@ setValidationFields((prev) => ({
       return (
 
             <section
-              className="form-card"
+              className={`form-card ${
+                censusStep === "resident"
+                  ? "resident-step-mode"
+                  : "family-step-mode"
+              }`}
               key={family.id}
             >
 
               {/* FAMILY HEADER */}
 
-              <div className="section-title">
+             <div className="census-card-header family-step-header">
 
-                <span>
-                  {String(
-                    familyIndex + 2
-                  ).padStart(2, "0")}
-                </span>
+  <div className="census-card-icon">
+    <UsersRound size={21} strokeWidth={1.8} />
+  </div>
 
-                <div>
+  <div className="census-card-number">
+    02
+  </div>
 
-                  <h3>
-                    Family {familyIndex + 1}
-                  </h3>
+  <div className="census-card-heading">
 
-                  <p>
-                    {family.linkedResidentKey
-                      ? "Automatically created family"
-                      : "Family information"}
-                  </p>
+    <h3>
+      Family Information
+    </h3>
 
-                </div>
+    <p>
+      Set up the family and its members
+      before completing individual resident details.
+    </p>
 
-              </div>
+  </div>
+
+  <div className="family-number-badge">
+    Family {familyIndex + 1}
+  </div>
+
+</div>
 
               {/* AUTOMATIC FAMILY NOTICE */}
 
@@ -1051,13 +1525,23 @@ setValidationFields((prev) => ({
                   FAMILY INFORMATION
               ================================================= */}
 
-              <div className="subsection">
+             <div className="family-basic-section">
 
-                <h4>
-                  Family Information
-                </h4>
+  <div className="family-basic-heading">
 
-                <div className="form-grid">
+    <div>
+      <strong>
+        Family Details
+      </strong>
+
+      <span>
+        Basic identification for this family unit.
+      </span>
+    </div>
+
+  </div>
+
+  <div className="form-grid">
 
                   {/* FAMILY NAME */}
 
@@ -1092,10 +1576,189 @@ setValidationFields((prev) => ({
                   FAMILY MEMBERS
               ================================================= */}
 
-              <div className="subsection">
-<h4>
-  Name of Family Members
-</h4>
+             <div className="family-members-section">
+
+  <div className="family-members-heading">
+
+  <div>
+    <strong>Family Members</strong>
+
+    <span>
+      List of all members in this family.
+    </span>
+  </div>
+
+  <div className="family-members-actions">
+
+    <button
+  type="button"
+  className="family-add-member-btn"
+  onClick={() => {
+    addFamilyMember(familyIndex);
+  }}
+>
+  + Add Member
+</button>
+
+  </div>
+
+</div>
+
+<div className="family-members-table">
+
+  <div className="family-table-header">
+
+    <span>#</span>
+    <span>Full Name</span>
+    <span>Relationship</span>
+    <span>Status</span>
+    <span>Has Own Family?</span>
+    <span>Actions</span>
+
+  </div>
+
+
+  {family.members.map(
+    (tableMember, tableMemberIndex) => {
+
+      const tableMemberName =
+        tableMember.familyMemberName ||
+        [
+          tableMember.firstName,
+          tableMember.middleName,
+          tableMember.lastName,
+          tableMember.suffix,
+        ]
+          .filter(Boolean)
+          .join(" ") ||
+        `Member ${tableMemberIndex + 1}`;
+
+      return (
+        <div
+          className={`family-table-row ${
+            activeMemberIndex === tableMemberIndex
+              ? "active"
+              : ""
+          }`}
+          key={tableMemberIndex}
+        >
+
+          <span className="family-table-number">
+            {tableMemberIndex + 1}
+          </span>
+
+
+          <div className="family-table-name">
+
+            <strong>
+              {tableMemberName}
+            </strong>
+
+            {tableMember.familyRelationship ===
+              "Family Head" && (
+              <small>Family Head</small>
+            )}
+
+          </div>
+
+
+          <span className="family-table-relationship">
+            {tableMember.familyRelationship ||
+              "Not selected"}
+          </span>
+
+
+          <span className="family-table-status">
+            {tableMember.familyMemberStatus ||
+              "Not selected"}
+          </span>
+
+
+          <div className="family-table-own-family">
+
+            {tableMember.familyRelationship ===
+              "Family Head" ||
+            tableMember.familyRelationship ===
+              "Spouse" ? (
+
+              <span className="own-family-na">
+                —
+              </span>
+
+            ) : (
+
+              <select
+                value={
+                  tableMember.hasOwnFamily
+                }
+                onChange={(event) =>
+                  handleOwnFamilyChange(
+                    familyIndex,
+                    tableMemberIndex,
+                    event.target.value
+                  )
+                }
+              >
+
+                <option value="">
+                  Select
+                </option>
+
+                <option value="No">
+                  No
+                </option>
+
+                <option value="Yes">
+                  Yes
+                </option>
+
+              </select>
+
+            )}
+
+          </div>
+
+
+          <div className="family-table-actions">
+
+            {family.linkedResidentKey && tableMemberIndex === 0 ? (
+              <span className="linked-resident-badge">
+                Linked Resident
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="family-edit-member"
+                onClick={() => {
+                  setActiveMemberIndex(tableMemberIndex);
+                  setIsMemberEditorOpen(true);
+                }}
+              >
+                Edit
+              </button>
+            )}
+
+          </div>
+
+        </div>
+      );
+    }
+  )}
+
+</div>
+
+<div className="family-table-note">
+
+  <Info size={14} strokeWidth={1.8} />
+
+  <span>
+    Members marked "Yes" in Has Own Family
+    will be handled as a separate family unit
+    in the next family process.
+  </span>
+
+</div>
+
 {family.members
   .slice(
     activeMemberIndex,
@@ -1113,66 +1776,107 @@ const actualMemberIndex =
   const memberIndex =
   actualMemberIndex;
 
+  const isLinkedFamilyHead = Boolean(
+    family.linkedResidentKey && memberIndex === 0
+  );
+
                     const role =
   getRelationship(member);
 
                     return (
                       <>
 
+                      <div className="family-member-editor">
+
+                      <div className="family-active-member-bar">
+
+  <div>
+
+    <span>
+      Member {memberIndex + 1} of {family.members.length}
+    </span>
+
+    <strong>
+      {member.familyMemberName ||
+        `Family Member ${memberIndex + 1}`}
+    </strong>
+
+  </div>
+
+  {member.familyRelationship && (
+    <span className="family-active-role">
+      {member.familyRelationship}
+    </span>
+  )}
+
+</div>
+
+</div>
+
+
                         {/* FAMILY MEMBER BASIC INFORMATION */}
 
-<div className="subsection">
+{isMemberEditorOpen && !isLinkedFamilyHead && (
+  <div className="subsection family-member-edit-panel">
+
   <div className="subsection-label">
     Family Member Information
   </div>
 
   <div className="form-grid">
 
-    {/* FULL NAME */}
-
+    {/* NAME PARTS — kept separate so multi-word first/middle names stay correct */}
     <div className="form-group">
-      <label>
-        Full Name *
-      </label>
-
+      <label>First Name *</label>
       <input
         type="text"
-        value={member.familyMemberName}
-        onChange={(event) => {
-  const fullName = event.target.value;
-
-  const parsedName = splitFullName(fullName);
-
-  updateMember(
-    familyIndex,
-    memberIndex,
-    "familyMemberName",
-    fullName
-  );
-
-  updateMember(
-    familyIndex,
-    memberIndex,
-    "firstName",
-    parsedName.firstName
-  );
-
-  updateMember(
-    familyIndex,
-    memberIndex,
-    "middleName",
-    parsedName.middleName
-  );
-
-  updateMember(
-    familyIndex,
-    memberIndex,
-    "lastName",
-    parsedName.lastName
-  );
-}}
-        placeholder="Full name of family member"
+        value={member.firstName}
+        onChange={(event) =>
+          updateResidentNamePart(familyIndex, memberIndex, "firstName", event.target.value)
+        }
+        placeholder="First name"
       />
+    </div>
+
+    <div className="form-group">
+      <label>Middle Name</label>
+      <input
+        type="text"
+        value={member.middleName}
+        onChange={(event) =>
+          updateResidentNamePart(familyIndex, memberIndex, "middleName", event.target.value)
+        }
+        placeholder="Middle name"
+      />
+    </div>
+
+    <div className="form-group">
+      <label>Last Name *</label>
+      <input
+        type="text"
+        value={member.lastName}
+        onChange={(event) =>
+          updateResidentNamePart(familyIndex, memberIndex, "lastName", event.target.value)
+        }
+        placeholder="Last name"
+      />
+    </div>
+
+    <div className="form-group">
+      <label>Suffix</label>
+      <select
+        value={member.suffix}
+        onChange={(event) =>
+          updateResidentNamePart(familyIndex, memberIndex, "suffix", event.target.value)
+        }
+      >
+        <option value="">NONE</option>
+        <option value="Jr.">JR.</option>
+        <option value="Sr.">SR.</option>
+        <option value="II">II</option>
+        <option value="III">III</option>
+        <option value="IV">IV</option>
+      </select>
     </div>
 
     {/* RELATIONSHIP */}
@@ -1284,10 +1988,71 @@ const actualMemberIndex =
     </div>
 
   </div>
+
+  <div className="family-member-editor-actions">
+    <button
+      type="button"
+      className="family-editor-close-button"
+      onClick={() => setIsMemberEditorOpen(false)}
+    >
+      Close
+    </button>
+  </div>
+
 </div>
 
+)}
+
+{censusStep === "resident" && (
+  <div className="resident-step-header">
+    <div className="resident-step-heading">
+      <div className="resident-step-icon">
+        <UsersRound size={20} strokeWidth={1.8} />
+      </div>
+
+      <div>
+        <span className="resident-step-kicker">03 • Resident Information</span>
+        <h3>{member.familyMemberName || `Resident ${memberIndex + 1}`}</h3>
+        <p>
+          {isLinkedFamilyHead
+            ? "Linked from the original family. Personal information is review-only here."
+            : "Complete the individual information for this household member."}
+        </p>
+        <span className="resident-id-chip">
+          {getResidentId(member) || "Resident ID pending"}
+        </span>
+      </div>
+    </div>
+
+    <div className="resident-step-selector">
+      <label>Select Member</label>
+      <select
+        value={activeMemberIndex}
+        onChange={(event) =>
+          setActiveMemberIndex(Number(event.target.value))
+        }
+      >
+        {family.members.map((residentOption, residentOptionIndex) => (
+          <option
+            key={residentOptionIndex}
+            value={residentOptionIndex}
+          >
+            {residentOption.familyMemberName ||
+              `Member ${residentOptionIndex + 1}`}
+          </option>
+        ))}
+      </select>
+      <span>
+        {activeMemberIndex + 1} of {family.members.length}
+      </span>
+    </div>
+  </div>
+)}
+
 <div
-  className="resident-card"
+  className={`resident-card ${
+    isLinkedFamilyHead ? "linked-head-review-card" : ""
+  }`}
   key={memberIndex}
 >
 
@@ -1316,6 +2081,19 @@ const actualMemberIndex =
 
                         </div>
 
+                        {isLinkedFamilyHead && (
+                          <div className="linked-head-review-note">
+                            <CheckCircle2 size={15} strokeWidth={1.8} />
+                            <div>
+                              <strong>Same resident, new family role</strong>
+                              <span>
+                                This person keeps the same Resident ID and information.
+                                Only the family relationship is shown as Family Head here.
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
                         {/* =================================================
                             PERSONAL INFORMATION
                         ================================================= */}
@@ -1336,12 +2114,17 @@ const actualMemberIndex =
 
                             <input
                               type="text"
-                              value={
-                                member.firstName
-                              }                       
-                                readOnly
-                                placeholder="First name"
-                                />
+                              value={member.firstName}
+                              onChange={(event) =>
+                                updateResidentNamePart(
+                                  familyIndex,
+                                  memberIndex,
+                                  "firstName",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="First name"
+                            />
 
                           </div>
 
@@ -1354,11 +2137,18 @@ const actualMemberIndex =
                             </label>
 
                             <input
-  type="text"
-  value={member.middleName}
-  readOnly
-  placeholder="Middle name"
-/>
+                              type="text"
+                              value={member.middleName}
+                              onChange={(event) =>
+                                updateResidentNamePart(
+                                  familyIndex,
+                                  memberIndex,
+                                  "middleName",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Middle name"
+                            />
 
                           </div>
 
@@ -1372,10 +2162,15 @@ const actualMemberIndex =
 
                             <input
                               type="text"
-                              value={
-                                member.lastName
+                              value={member.lastName}
+                              onChange={(event) =>
+                                updateResidentNamePart(
+                                  familyIndex,
+                                  memberIndex,
+                                  "lastName",
+                                  event.target.value
+                                )
                               }
-                              readOnly
                               placeholder="Last name"
                             />
 
@@ -1394,7 +2189,7 @@ const actualMemberIndex =
                                 member.suffix
                               }
                               onChange={(event) =>
-                                updateMember(
+                                updateResidentNamePart(
                                   familyIndex,
                                   memberIndex,
                                   "suffix",
@@ -2142,6 +2937,8 @@ const actualMemberIndex =
 
     <select
       value={member.education}
+      disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 4}
+      className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 4 ? "age-auto-field" : ""}
       onChange={(event) =>
         updateMember(
           familyIndex,
@@ -2154,6 +2951,10 @@ const actualMemberIndex =
 
       <option value="">
         SELECT EDUCATIONAL ATTAINMENT
+      </option>
+
+      <option value="Not Yet of School Age">
+        NOT YET OF SCHOOL AGE
       </option>
 
       <option value="No Formal Education">
@@ -2217,6 +3018,8 @@ const actualMemberIndex =
 
     <select
       value={member.schoolStatus}
+      disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 4}
+      className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 4 ? "age-auto-field" : ""}
       onChange={(event) =>
         updateMember(
           familyIndex,
@@ -2229,6 +3032,10 @@ const actualMemberIndex =
 
       <option value="">
         SELECT STATUS
+      </option>
+
+      <option value="Not Applicable">
+        NOT APPLICABLE
       </option>
 
       <option value="Currently Studying">
@@ -2782,6 +3589,8 @@ const actualMemberIndex =
 
   <select
     value={member.primaryOccupation}
+    disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
+    className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
     onChange={(event) => {
 
       const occupation = event.target.value;
@@ -2867,6 +3676,7 @@ const actualMemberIndex =
     <option value="">
       SELECT PRIMARY OCCUPATION
     </option>
+    <option value="Not Applicable">NOT APPLICABLE</option>
 
     <option value="Farmer">
       FARMER
@@ -2943,6 +3753,8 @@ const actualMemberIndex =
 
   <select
     value={member.employmentStatus}
+    disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
+    className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
     onChange={(event) => {
 
       const status = event.target.value;
@@ -2960,6 +3772,7 @@ const actualMemberIndex =
     <option value="">
       SELECT STATUS
     </option>
+    <option value="Not Applicable">NOT APPLICABLE</option>
 
     <option value="Employed">
       EMPLOYED
@@ -2999,7 +3812,9 @@ const actualMemberIndex =
 
     <input
       type="text"
-      value={member.secondaryOccupations.join(", ")}
+      value={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "NOT APPLICABLE" : member.secondaryOccupations.join(", ")}
+      disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
+      className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
       onChange={(event) => {
 
         const occupations =
@@ -3072,9 +3887,11 @@ const actualMemberIndex =
     </label>
 
     <input
-      type="number"
-      min="0"
-      value={member.monthlyIncome}
+      type={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "text" : "number"}
+      min={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? undefined : "0"}
+      value={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "NOT APPLICABLE" : member.monthlyIncome}
+      disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
+      className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
       onChange={(event) =>
         updateMember(
           familyIndex,
@@ -3107,9 +3924,9 @@ const actualMemberIndex =
                             </label>
 
                             <textarea
-                              value={
-                                member.skills
-                              }
+                              value={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "NOT APPLICABLE" : member.skills}
+                              disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
+                              className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
                               onChange={(event) =>
                                 updateMember(
                                   familyIndex,
@@ -3146,6 +3963,8 @@ const actualMemberIndex =
                               value={
                                 member.voterStatus
                               }
+                              disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) < 18}
+                              className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) < 18 ? "age-auto-field" : ""}
                               onChange={(event) =>
                                 updateMember(
                                   familyIndex,
@@ -3302,6 +4121,7 @@ const actualMemberIndex =
                 )} 
 
                 <div
+  className="legacy-member-nav"
   style={{
     display: "flex",
     justifyContent: "center",
@@ -3329,23 +4149,970 @@ const actualMemberIndex =
     </button>
   )}
 
-  <button
-    type="button"
-    onClick={() =>
-      addFamilyMember(familyIndex)
-    }
-    className="new-census-button"
-  >
-    + Add Family Member
-  </button>
+  {activeMemberIndex < family.members.length - 1 && (
+    <button
+      type="button"
+      onClick={() =>
+        setActiveMemberIndex(
+          (current) => current + 1
+        )
+      }
+      className="new-census-button"
+    >
+      Next Member →
+    </button>
+  )}
 </div>
 </div>
+                </div>
 
-                </div> 
+                {censusStep === "family" && (
+                  <div className="family-step-footer">
+                    <button
+                      type="button"
+                      className="family-footer-secondary"
+                      onClick={() => {
+                        setIsMemberEditorOpen(false);
+                        setCensusStep("household");
+                      }}
+                    >
+                      ← Previous
+                    </button>
+
+                    <div className="family-footer-right">
+                      <button
+                        type="button"
+                        className="family-footer-secondary"
+                        onClick={() => setIsMemberEditorOpen(false)}
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="button"
+                        className="family-footer-primary"
+                        onClick={() => {
+                          const incompleteMember =
+                            family.members.find(
+                              (member) =>
+                                !member.familyMemberName.trim() ||
+                                !member.familyRelationship ||
+                                !member.familyMemberStatus
+                            );
+
+                          if (!family.familyName.trim()) {
+                            setValidationError(
+                              "Please enter the family name."
+                            );
+
+                            window.setTimeout(() => {
+                              setValidationError("");
+                            }, 2000);
+
+                            return;
+                          }
+
+                          if (incompleteMember) {
+                            setValidationError(
+                              "Please complete the name, relationship, and status of every family member."
+                            );
+
+                            window.setTimeout(() => {
+                              setValidationError("");
+                            }, 2000);
+
+                            return;
+                          }
+
+                          setValidationError("");
+                          setIsMemberEditorOpen(false);
+                          setActiveMemberIndex(0);
+                          setCensusStep("resident");
+                        }}
+                      >
+                        Save & Continue
+                        <span>→</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {censusStep === "resident" && (
+                  <div className="resident-step-footer">
+                    <button
+                      type="button"
+                      className="resident-footer-secondary"
+                      onClick={() => {
+                        setIsMemberEditorOpen(false);
+                        setCensusStep("family");
+                      }}
+                    >
+                      ← Back to Family
+                    </button>
+
+                    <div className="resident-footer-center">
+                      <span>
+                        Resident {activeMemberIndex + 1} of {family.members.length}
+                      </span>
+                    </div>
+
+                    <div className="resident-footer-actions">
+                      {activeMemberIndex > 0 && (
+                        <button
+                          type="button"
+                          className="resident-footer-secondary"
+                          onClick={() =>
+                            runResidentNavigation(() =>
+                              setActiveMemberIndex((current) => current - 1)
+                            )
+                          }
+                        >
+                          ← Previous Member
+                        </button>
+                      )}
+
+                      {activeMemberIndex < family.members.length - 1 ? (
+                        <button
+                          type="button"
+                          className="resident-footer-primary"
+                          onClick={() =>
+                            runResidentNavigation(() =>
+                              setActiveMemberIndex((current) => current + 1)
+                            )
+                          }
+                        >
+                          Save & Next Member →
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="resident-footer-primary"
+                          onClick={() =>
+                            runResidentNavigation(() => {
+                            const ownFamilyMemberIndex = family.members.findIndex(
+                              (residentMember) =>
+                                residentMember.hasOwnFamily === "Yes"
+                            );
+
+                            if (
+                              activeFamilyIndex === 0 &&
+                              ownFamilyMemberIndex !== -1
+                            ) {
+                              const linkedResidentKey =
+                                `${family.id}-${ownFamilyMemberIndex}`;
+
+                              const linkedFamilyIndex = families.findIndex(
+                                (familyItem) =>
+                                  familyItem.linkedResidentKey === linkedResidentKey
+                              );
+
+                              if (linkedFamilyIndex !== -1) {
+                                setActiveFamilyIndex(linkedFamilyIndex);
+                              } else {
+                                createFamilyFromChild(
+                                  activeFamilyIndex,
+                                  ownFamilyMemberIndex
+                                );
+                              }
+
+                              setActiveMemberIndex(0);
+                              setIsMemberEditorOpen(false);
+                              setCensusStep("family");
+                              return;
+                            }
+
+                            setActiveMemberIndex(0);
+                            setIsMemberEditorOpen(false);
+                            setCensusStep("review");
+                          })}
+                        >
+                          Save & Continue →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
             </section>
             
       )
     })}
+
+{censusStep === "review" && (
+  <section className="review-submit-page">
+
+    <div className="review-main-header">
+      <div className="review-step-number">04</div>
+      <div className="review-header-icon">
+        <ClipboardList size={21} strokeWidth={1.8} />
+      </div>
+      <div>
+        <h3>Review & Submit</h3>
+        <p>Please review all information below before submitting the census.</p>
+      </div>
+    </div>
+
+    <section className="review-section-card">
+      <div className="review-section-title">
+        <div>
+          <House size={17} strokeWidth={1.8} />
+          <strong>Household Information</strong>
+        </div>
+        <button
+          type="button"
+          className="review-edit-button"
+          onClick={() => setCensusStep("household")}
+        >
+          Edit
+        </button>
+      </div>
+
+      <div className="review-household-grid">
+        <div><span>Household Number</span><strong>{householdNumber || "Not entered"}</strong></div>
+        <div><span>House Number</span><strong>{houseNumber || "Not entered"}</strong></div>
+        <div><span>Street</span><strong>{street || "Not selected"}</strong></div>
+        <div><span>Purok</span><strong>{purok || "Not selected"}</strong></div>
+        <div><span>Barangay</span><strong>{reviewBarangayName}</strong></div>
+        <div><span>Municipality</span><strong>{reviewMunicipalityName}</strong></div>
+        <div><span>Province</span><strong>{reviewProvinceName}</strong></div>
+        <div><span>Region</span><strong>{reviewRegionName}</strong></div>
+      </div>
+    </section>
+
+    <section className="review-section-card">
+      <div className="review-section-title">
+        <div>
+          <UsersRound size={17} strokeWidth={1.8} />
+          <strong>Families & Members</strong>
+        </div>
+        <span className="review-overview-pill">
+          {families.length} {families.length === 1 ? "Family" : "Families"} • {totalResidents} Residents
+        </span>
+      </div>
+
+      <div className="review-family-stack">
+        {families.map((reviewFamily, reviewFamilyIndex) => {
+          const reviewHead = reviewFamily.members.find(
+            (member) => member.familyRelationship === "Family Head"
+          );
+          const isExpanded = expandedReviewFamilyIndex === reviewFamilyIndex;
+
+          return (
+            <div className={`review-family-card ${isExpanded ? "expanded" : ""}`} key={reviewFamily.id}>
+              <div className="review-family-summary">
+                <div className="review-family-number">{String(reviewFamilyIndex + 1).padStart(2, "0")}</div>
+                <div className="review-family-summary-text">
+                  <strong>Family {reviewFamilyIndex + 1}</strong>
+                  <span>{reviewFamily.familyName || "Unnamed Family"}</span>
+                  <small>Family Head: {reviewHead ? getResidentDisplayName(reviewHead) : "Not selected"}</small>
+                </div>
+                <div className="review-family-member-count">
+                  <strong>{reviewFamily.members.length}</strong>
+                  <span>{reviewFamily.members.length === 1 ? "Member" : "Members"}</span>
+                </div>
+                <div className="review-family-summary-actions">
+                  <button
+                    type="button"
+                    className="review-edit-button"
+                    onClick={() => {
+                      setActiveFamilyIndex(reviewFamilyIndex);
+                      setActiveMemberIndex(0);
+                      setIsMemberEditorOpen(false);
+                      setCensusStep("family");
+                    }}
+                  >
+                    Edit Family
+                  </button>
+                  <button
+                    type="button"
+                    className="review-see-members-button"
+                    onClick={() =>
+                      setExpandedReviewFamilyIndex(isExpanded ? null : reviewFamilyIndex)
+                    }
+                  >
+                    {isExpanded ? "Hide Members ↑" : "See Members ↓"}
+                  </button>
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div className="review-member-list">
+                  {reviewFamily.members.map((member, memberIndex) => {
+                    const memberKey = `${reviewFamily.id}-${memberIndex}`;
+                    const linkedFamilyIndex = families.findIndex(
+                      (familyItem) => familyItem.linkedResidentKey === memberKey
+                    );
+
+                    return (
+                      <div className="review-member-item" key={memberIndex}>
+                        <div className="review-member-index">{memberIndex + 1}</div>
+                        <div className="review-member-details">
+                          <strong>{getResidentDisplayName(member)}</strong>
+                          <small>{getResidentId(member) || "ID pending"}</small>
+                          <span>
+                            {member.familyRelationship || "Relationship not selected"}
+                            {member.familyMemberStatus ? ` • ${member.familyMemberStatus}` : ""}
+                            {linkedFamilyIndex !== -1 ? ` • Own Family → Family ${linkedFamilyIndex + 1}` : ""}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="review-view-button"
+                          onClick={() => {
+                            setActiveFamilyIndex(reviewFamilyIndex);
+                            setActiveMemberIndex(memberIndex);
+                            setIsMemberEditorOpen(false);
+                            setCensusStep("resident");
+                          }}
+                        >
+                          View / Edit
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="review-info-note">
+        <Info size={14} strokeWidth={1.8} />
+        <span>Click “View / Edit” on any member to review or update resident information.</span>
+      </div>
+    </section>
+
+    {validationError && (
+      <div className="validation-error review-validation-error">
+        {validationError}
+      </div>
+    )}
+
+    <div className="review-footer">
+      <div className="review-footer-left">
+      <button
+        type="button"
+        className="review-secondary-button"
+        onClick={() => {
+          const lastFamilyIndex = Math.max(families.length - 1, 0);
+          const lastMemberIndex = Math.max(
+            (families[lastFamilyIndex]?.members.length || 1) - 1,
+            0
+          );
+          setActiveFamilyIndex(lastFamilyIndex);
+          setActiveMemberIndex(lastMemberIndex);
+          setCensusStep("resident");
+        }}
+      >
+        ← Back to Residents
+      </button>
+        <button type="button" className="review-secondary-button">Cancel</button>
+      </div>
+
+        <button
+          type="button"
+          className="review-submit-button"
+          onClick={() => {
+            for (let familyIndex = 0; familyIndex < families.length; familyIndex++) {
+              const familyToCheck = families[familyIndex];
+
+              if (!familyToCheck || familyToCheck.members.length === 0) {
+                setValidationError(`Family ${familyIndex + 1} must have at least one resident.`);
+                return;
+              }
+
+              for (let memberIndex = 0; memberIndex < familyToCheck.members.length; memberIndex++) {
+                const member = familyToCheck.members[memberIndex];
+                const missingFields: string[] = [];
+
+                if (!member.firstName.trim()) missingFields.push("First Name");
+                if (!member.lastName.trim()) missingFields.push("Last Name");
+                if (!member.birthDate) missingFields.push("Date of Birth");
+                if (!member.birthPlace.trim()) missingFields.push("Place of Birth");
+                if (!member.sex) missingFields.push("Sex");
+                if (!member.civilStatus) missingFields.push("Civil Status");
+                if (!member.nationality) missingFields.push("Nationality");
+                if (!member.religion) missingFields.push("Religion");
+
+                if (missingFields.length > 0) {
+                  setActiveFamilyIndex(familyIndex);
+                  setActiveMemberIndex(memberIndex);
+                  setValidationError(
+                    `Family ${familyIndex + 1}, Resident ${memberIndex + 1}: Please complete ${missingFields.join(", ")}.`
+                  );
+                  window.setTimeout(() => setValidationError(""), 3500);
+                  return;
+                }
+              }
+            }
+
+            setValidationError("");
+            finalSubmitButtonRef.current?.click();
+          }}
+        >
+          Submit Census
+        </button>
+    </div>
+
+    <p className="review-submit-note">
+      Please ensure all information is correct before submitting.
+    </p>
+  </section>
+)}
+
+</div>
+
+      <aside className="census-side-panel">
+
+  <section className="context-card review-only-card review-summary-card">
+    <div className="context-card-title">
+      <ClipboardList size={16} strokeWidth={1.8} />
+      <span>Census Summary</span>
+    </div>
+    <div className="review-summary-list">
+      <div><span>Household</span><strong>1</strong></div>
+      <div><span>Families</span><strong>{families.length}</strong></div>
+      <div><span>Total Residents</span><strong>{totalResidents}</strong></div>
+      <div><span>Additional Families</span><strong>{additionalFamilyCount}</strong></div>
+      <div className="review-summary-total"><span>Total Individuals</span><strong>{totalResidents}</strong></div>
+    </div>
+  </section>
+
+  <section className="context-card review-only-card review-completion-card">
+    <div className="context-card-title review-green-title">
+      <CheckCircle2 size={16} strokeWidth={1.8} />
+      <span>Completion Status</span>
+    </div>
+    <div className="review-completion-list">
+      <div><CheckCircle2 size={14} /><span><strong>Household Information</strong><small>Completed</small></span></div>
+      <div><CheckCircle2 size={14} /><span><strong>Family Information</strong><small>Completed</small></span></div>
+      <div><CheckCircle2 size={14} /><span><strong>Resident Information</strong><small>Completed</small></span></div>
+      <div><CheckCircle2 size={14} /><span><strong>Review & Submit</strong><small>Current Step</small></span></div>
+    </div>
+  </section>
+
+  <section className="context-card review-only-card review-how-card">
+    <div className="context-card-title">
+      <Info size={16} strokeWidth={1.8} />
+      <span>How it works</span>
+    </div>
+    <ol className="review-how-list">
+      <li>Review all information for accuracy.</li>
+      <li>Use “Edit” or “View / Edit” to make changes.</li>
+      <li>Click “Submit Census” to finalize.</li>
+      <li>Verify everything before submission.</li>
+    </ol>
+  </section>
+
+  <section className="context-card review-only-card review-help-card">
+    <div className="context-card-title">
+      <Info size={16} strokeWidth={1.8} />
+      <span>Need Help?</span>
+    </div>
+    <p>If you find any issues, go back and edit the information before submitting.</p>
+  </section>
+
+  {/* =========================================
+      CONTEXT
+  ========================================= */}
+
+  <section className="context-card">
+
+    <div className="context-card-title">
+      <UsersRound size={16} strokeWidth={1.8} />
+
+      <span>
+        {censusStep === "household"
+          ? "Household Context"
+          : "Family Context"}
+      </span>
+    </div>
+
+    {censusStep === "household" ? (
+
+      <div className="context-details">
+
+        <div>
+          <span>Household Number</span>
+          <strong>
+            {householdNumber || "Not yet entered"}
+          </strong>
+        </div>
+
+        <div>
+          <span>House Number</span>
+          <strong>
+            {houseNumber || "Not yet entered"}
+          </strong>
+        </div>
+
+        <div>
+          <span>Purok</span>
+          <strong>
+            {purok || "Not selected"}
+          </strong>
+        </div>
+
+        <div>
+          <span>Street</span>
+          <strong>
+            {street || "Automatic"}
+          </strong>
+        </div>
+
+      </div>
+
+    ) : (
+
+      <div className="context-details">
+
+        <div>
+          <span>Family Name</span>
+          <strong>
+            {currentFamily?.familyName ||
+              "Not yet entered"}
+          </strong>
+        </div>
+
+        <div>
+          <span>Family Head</span>
+          <strong>
+            {currentFamilyHeadName ||
+              "Not yet selected"}
+          </strong>
+        </div>
+
+        <div>
+          <span>Total Members</span>
+          <strong>
+            {currentFamily?.members.length || 0}
+          </strong>
+        </div>
+
+        <div>
+          <span>Additional Families</span>
+          <strong>
+            {Math.max(families.length - 1, 0)}
+          </strong>
+        </div>
+
+        {activeFamilyIndex > 0 && (
+          <button
+            type="button"
+            className="back-family-one-button"
+            onClick={() => {
+              setActiveFamilyIndex(0);
+              setActiveMemberIndex(0);
+              setIsMemberEditorOpen(false);
+              setCensusStep("family");
+            }}
+          >
+            ← Back to Family 1
+          </button>
+        )}
+
+      </div>
+
+    )}
+
+  </section>
+
+
+  {/* =========================================
+      MEMBERS LIST
+  ========================================= */}
+
+  <section className="context-card">
+
+    <div className="context-card-title">
+      <UsersRound size={16} strokeWidth={1.8} />
+
+      <span>Members List</span>
+    </div>
+
+    {censusStep === "household" ? (
+
+      <div className="context-empty-state">
+
+        <ClipboardList
+          size={21}
+          strokeWidth={1.7}
+        />
+
+        <strong>
+          Family members will appear here
+        </strong>
+
+        <p>
+          Complete the household information
+          first, then continue to Family
+          Information.
+        </p>
+
+      </div>
+
+    ) : currentFamily?.members.length ? (
+
+      <div className="context-member-list">
+
+        {currentFamily.members.map(
+          (member, index) => {
+
+            const memberName =
+              [
+                member.firstName,
+                member.middleName,
+                member.lastName,
+                member.suffix,
+              ]
+                .filter(Boolean)
+                .join(" ") ||
+              `Member ${index + 1}`;
+
+            const memberLinkedFamilyKey = currentFamily
+              ? `${currentFamily.id}-${index}`
+              : "";
+
+            const memberLinkedFamilyIndex = families.findIndex(
+              (familyItem) =>
+                familyItem.linkedResidentKey === memberLinkedFamilyKey
+            );
+
+            return (
+              <div
+                className="context-member-row"
+                key={index}
+              >
+
+                <span className="member-number">
+                  {index + 1}
+                </span>
+
+                <div className="member-summary">
+
+                  <strong>
+                    {memberName}
+                  </strong>
+
+                  {member.hasOwnFamily ===
+                    "Yes" && (
+                    <>
+                      <small>
+                        Has Own Family: Yes
+                      </small>
+
+                      <button
+                        type="button"
+                        className="open-own-family-button"
+                        onClick={() => {
+                          if (memberLinkedFamilyIndex !== -1) {
+                            setActiveFamilyIndex(memberLinkedFamilyIndex);
+                          } else {
+                            createFamilyFromChild(activeFamilyIndex, index);
+                          }
+
+                          setActiveMemberIndex(0);
+                          setIsMemberEditorOpen(false);
+                          setCensusStep("family");
+                        }}
+                      >
+                        {memberLinkedFamilyIndex !== -1
+                          ? `Open Family ${memberLinkedFamilyIndex + 1} →`
+                          : "Set Up Own Family →"}
+                      </button>
+                    </>
+                  )}
+
+                </div>
+
+                {member.familyRelationship && (
+                  <span className="member-role">
+                    {member.familyRelationship}
+                  </span>
+                )}
+
+              </div>
+            );
+          }
+        )}
+
+      </div>
+
+    ) : (
+
+      <div className="context-empty-state">
+        No members added yet.
+      </div>
+
+    )}
+
+  </section>
+
+
+  {/* =========================================
+      HOW IT WORKS
+  ========================================= */}
+
+  <section className="context-card logic-card">
+
+    <div className="context-card-title">
+      <Info size={16} strokeWidth={1.8} />
+
+      <span>
+        How it works
+      </span>
+    </div>
+
+    {censusStep === "household" ? (
+
+      <>
+        <p className="logic-question">
+          Complete the household first.
+        </p>
+
+        <ol className="logic-list">
+          <li>
+            Enter the household identification.
+          </li>
+
+          <li>
+            Select the complete location.
+          </li>
+
+          <li>
+            Purok automatically determines the
+            street.
+          </li>
+
+          <li>
+            Save & Continue opens Family
+            Information.
+          </li>
+        </ol>
+
+        <div className="logic-example">
+          Next: Family Information
+          <ArrowRight
+            size={14}
+            strokeWidth={1.8}
+          />
+        </div>
+      </>
+
+    ) : (
+
+      <>
+        <p className="logic-question">
+          When you mark "Yes" in Has Own
+          Family:
+        </p>
+
+        <ol className="logic-list">
+          <li>
+            The member is identified as having
+            a separate family unit.
+          </li>
+
+          <li>
+            That member may become the Family
+            Head of an additional family.
+          </li>
+
+          <li>
+            Members of that new family will be
+            encoded separately.
+          </li>
+        </ol>
+
+        {ownFamilyMembers.length > 0 && (
+          <div className="logic-example">
+
+            <CheckCircle2
+              size={14}
+              strokeWidth={1.8}
+            />
+
+            {ownFamilyMembers.length} member
+            {ownFamilyMembers.length !== 1
+              ? "s"
+              : ""}{" "}
+            marked Yes
+
+          </div>
+        )}
+      </>
+
+    )}
+
+  </section>
+
+
+  {/* =========================================
+      PROGRESS
+  ========================================= */}
+
+  <section className="context-card progress-card">
+
+    <div className="context-card-title">
+      <ClipboardList
+        size={16}
+        strokeWidth={1.8}
+      />
+
+      <span>Progress</span>
+    </div>
+
+    <div className="context-progress-heading">
+
+      <span>
+        {censusStep === "household"
+          ? "Household Information"
+          : `Family ${activeFamilyIndex + 1}`}
+      </span>
+
+      <strong>
+        {censusStep === "household"
+          ? `${householdProgress}%`
+          : `${currentFamily?.members.length || 0} members`}
+      </strong>
+
+    </div>
+
+    <div className="context-progress-track">
+
+      <div
+        className="context-progress-fill"
+        style={{
+          width:
+            censusStep === "household"
+              ? `${householdProgress}%`
+              : "50%",
+        }}
+      />
+
+    </div>
+
+    <p className="context-progress-text">
+      {censusStep === "household"
+        ? `${completedHouseholdFields} of ${householdRequiredValues.length} required household fields completed`
+        : "Family information is currently being encoded."}
+    </p>
+
+  </section>
+
+
+  {/* =========================================
+      BOTTOM NOTE
+  ========================================= */}
+
+  <div className="context-save-note">
+
+    <CheckCircle2
+      size={16}
+      strokeWidth={1.8}
+    />
+
+    <p>
+      Click "Save & Continue" to proceed
+      without submitting the census yet.
+    </p>
+
+  </div>
+
+</aside>
+
+</div>
+
+{censusStep === "household" && (
+  <section className="census-next-flow">
+
+    <div className="census-next-flow-title">
+      <span>Step 1</span>
+
+      <div>
+        <strong>Household Information</strong>
+        <small>What happens next?</small>
+      </div>
+    </div>
+
+
+    <div className="census-flow-items">
+
+      <div className="census-flow-item active">
+        <div className="census-flow-icon">
+          <House size={17} strokeWidth={1.8} />
+        </div>
+
+        <div>
+          <strong>Household</strong>
+          <span>Complete household details</span>
+        </div>
+      </div>
+
+
+      <ArrowRight
+        className="census-flow-arrow"
+        size={17}
+        strokeWidth={1.7}
+      />
+
+
+      <div className="census-flow-item">
+        <div className="census-flow-icon">
+          <UsersRound size={17} strokeWidth={1.8} />
+        </div>
+
+        <div>
+          <strong>Family</strong>
+          <span>Add family members</span>
+        </div>
+      </div>
+
+
+      <ArrowRight
+        className="census-flow-arrow"
+        size={17}
+        strokeWidth={1.7}
+      />
+
+
+      <div className="census-flow-item">
+        <div className="census-flow-icon">
+          <ClipboardList size={17} strokeWidth={1.8} />
+        </div>
+
+        <div>
+          <strong>Resident</strong>
+          <span>Complete individual details</span>
+        </div>
+      </div>
+
+
+      <ArrowRight
+        className="census-flow-arrow"
+        size={17}
+        strokeWidth={1.7}
+      />
+
+
+      <div className="census-flow-item">
+        <div className="census-flow-icon">
+          <CheckCircle2 size={17} strokeWidth={1.8} />
+        </div>
+
+        <div>
+          <strong>Review & Submit</strong>
+          <span>Check all information</span>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+)}
+
+
  
         {/* =================================================
             SUBMIT
@@ -3361,6 +5128,7 @@ const actualMemberIndex =
   )}
 
   <button
+    ref={finalSubmitButtonRef}
     type="button"
     className="next-button"
     onClick={() => {
@@ -3418,76 +5186,60 @@ const actualMemberIndex =
 }
 
   // =================================================
-// CHECK CURRENT FAMILY RESIDENT INFORMATION
+// CHECK ALL FAMILY RESIDENT INFORMATION
 // =================================================
 
-const currentFamily = families[activeFamilyIndex];
-
-if (!currentFamily || currentFamily.members.length === 0) {
-  setValidationError(
-    `Family ${activeFamilyIndex + 1} must have at least one resident.`
-  );
-
-  setTimeout(() => {
-    setValidationError("");
-  }, 1500);
-
-  return;
-}
-
 for (
-  let memberIndex = 0;
-  memberIndex < currentFamily.members.length;
-  memberIndex++
+  let familyIndex = 0;
+  familyIndex < families.length;
+  familyIndex++
 ) {
-  const member = currentFamily.members[memberIndex];
+  const familyToValidate = families[familyIndex];
 
-  const missingFields: string[] = [];
-
-  if (!member.firstName.trim()) {
-    missingFields.push("First Name");
-  }
-
-  if (!member.lastName.trim()) {
-    missingFields.push("Last Name");
-  }
-
-  if (!member.birthDate) {
-    missingFields.push("Date of Birth");
-  }
-
-  if (!member.birthPlace.trim()) {
-    missingFields.push("Place of Birth");
-  }
-
-  if (!member.sex) {
-    missingFields.push("Sex");
-  }
-
-  if (!member.civilStatus) {
-    missingFields.push("Civil Status");
-  }
-
-  if (!member.nationality) {
-    missingFields.push("Nationality");
-  }
-
-  if (!member.religion) {
-    missingFields.push("Religion");
-  }
-
-  if (missingFields.length > 0) {
+  if (!familyToValidate || familyToValidate.members.length === 0) {
     setValidationError(
-      `Family ${activeFamilyIndex + 1}, Resident ${
-        memberIndex + 1
-      }: Please complete ${missingFields.join(", ")}.`
+      `Family ${familyIndex + 1} must have at least one resident.`
     );
 
     setTimeout(() => {
       setValidationError("");
-    }, 3000);
+    }, 1500);
 
     return;
+  }
+
+  for (
+    let memberIndex = 0;
+    memberIndex < familyToValidate.members.length;
+    memberIndex++
+  ) {
+    const member = familyToValidate.members[memberIndex];
+    const missingFields: string[] = [];
+
+    if (!member.firstName.trim()) missingFields.push("First Name");
+    if (!member.lastName.trim()) missingFields.push("Last Name");
+    if (!member.birthDate) missingFields.push("Date of Birth");
+    if (!member.birthPlace.trim()) missingFields.push("Place of Birth");
+    if (!member.sex) missingFields.push("Sex");
+    if (!member.civilStatus) missingFields.push("Civil Status");
+    if (!member.nationality) missingFields.push("Nationality");
+    if (!member.religion) missingFields.push("Religion");
+
+    if (missingFields.length > 0) {
+      setActiveFamilyIndex(familyIndex);
+      setActiveMemberIndex(memberIndex);
+      setValidationError(
+        `Family ${familyIndex + 1}, Resident ${
+          memberIndex + 1
+        }: Please complete ${missingFields.join(", ")}.`
+      );
+
+      setTimeout(() => {
+        setValidationError("");
+      }, 3000);
+
+      return;
+    }
   }
 }
 
@@ -3542,18 +5294,21 @@ if (activeFamilyIndex === 0) {
   );
 
   if (memberIndex !== -1) {
-    createFamilyFromChild(
-      activeFamilyIndex,
-      memberIndex
+    const linkedResidentKey = `${currentFamily.id}-${memberIndex}`;
+    const linkedFamilyIndex = families.findIndex(
+      (familyItem) =>
+        familyItem.linkedResidentKey === linkedResidentKey
     );
 
-    alert(
-      "Please fill up the information for the additional family."
-    );
+    if (linkedFamilyIndex === -1) {
+      createFamilyFromChild(activeFamilyIndex, memberIndex);
 
-    setActiveFamilyIndex(1);
+      alert(
+        "Please fill up the information for the additional family."
+      );
 
-    return;
+      return;
+    }
   }
 }
 
@@ -3563,9 +5318,16 @@ if (activeFamilyIndex === 0) {
     "BARANGAY CENSUS DATA",
     censusData
   );
+
+  }}
+style={{
+  display: "none",
+
 }}
+
 >
             Submit Census Form →
+
           </button>
 
         </div>

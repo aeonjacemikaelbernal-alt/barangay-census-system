@@ -17,22 +17,22 @@ import {
   LogIn,
 } from "lucide-react";
 
-import { supabase } from "./supabaseClient";
+import { supabase } from "../../services/supabaseClient";
 import "./Login.css";
 
-import barangayLogo from "./assets/barangay-pambuhan-logo.png";
+import barangayLogo from "../../assets/barangay-pambuhan-logo.png";
 
-import barangayHall from "./assets/login/barangay-hall.png";
-import aerial1 from "./assets/login/aerial-1.jfif";
-import aerial2 from "./assets/login/aerial-2.jfif";
-import aerial3 from "./assets/login/aerial-3.jfif";
-import aerial4 from "./assets/login/aerial-4.jfif";
-import aerial5 from "./assets/login/aerial-5.jfif";
-import aerial6 from "./assets/login/aerial-6.jfif";
-import aerial7 from "./assets/login/aerial-7.jfif";
-import aerial8 from "./assets/login/aerial-8.jfif";
-import aerial9 from "./assets/login/aerial-9.jfif";
-import aerial10 from "./assets/login/aerial-10.jfif";
+import barangayHall from "../../assets/login/barangay-hall.png";
+import aerial1 from "../../assets/login/aerial-1.jfif";
+import aerial2 from "../../assets/login/aerial-2.jfif";
+import aerial3 from "../../assets/login/aerial-3.jfif";
+import aerial4 from "../../assets/login/aerial-4.jfif";
+import aerial5 from "../../assets/login/aerial-5.jfif";
+import aerial6 from "../../assets/login/aerial-6.jfif";
+import aerial7 from "../../assets/login/aerial-7.jfif";
+import aerial8 from "../../assets/login/aerial-8.jfif";
+import aerial9 from "../../assets/login/aerial-8.jfif";
+import aerial10 from "../../assets/login/aerial-10.jfif";
 
 type LoginProps = {
   onLoginSuccess: () => void;
