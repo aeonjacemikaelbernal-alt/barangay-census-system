@@ -348,23 +348,23 @@ function HouseholdPrototype({
     );
 
   const [region, setRegion] = useState(
-    restoredDraft?.region ??
-      cachedBarangayProfile?.regionCode ??
+    restoredDraft?.region ||
+      cachedBarangayProfile?.regionCode ||
       ""
   );
   const [province, setProvince] = useState(
-    restoredDraft?.province ??
-      cachedBarangayProfile?.provinceCode ??
+    restoredDraft?.province ||
+      cachedBarangayProfile?.provinceCode ||
       ""
   );
   const [municipality, setMunicipality] = useState(
-    restoredDraft?.municipality ??
-      cachedBarangayProfile?.municipalityCode ??
+    restoredDraft?.municipality ||
+      cachedBarangayProfile?.municipalityCode ||
       ""
   );
   const [barangay, setBarangay] = useState(
-    restoredDraft?.barangay ??
-      cachedBarangayProfile?.barangayCode ??
+    restoredDraft?.barangay ||
+      cachedBarangayProfile?.barangayCode ||
       ""
   );
 
@@ -422,14 +422,12 @@ function HouseholdPrototype({
           JSON.stringify(profile)
         );
 
-        if (!restoredDraft) {
-          setRegion(profile.regionCode);
-          setProvince(profile.provinceCode);
-          setMunicipality(
-            profile.municipalityCode
-          );
-          setBarangay(profile.barangayCode);
-        }
+        setRegion((current) => current || profile.regionCode);
+        setProvince((current) => current || profile.provinceCode);
+        setMunicipality(
+          (current) => current || profile.municipalityCode
+        );
+        setBarangay((current) => current || profile.barangayCode);
       }
 
       if (!cancelled) setLocationLoading(false);
@@ -2359,7 +2357,9 @@ setValidationFields((prev) => ({
           !barangay
         ) {
           setValidationError(
-            "Barangay location is not configured. Please configure Barangay Information in Settings first."
+            navigator.onLine
+              ? "Barangay location is not configured. Please configure Barangay Information in Settings first."
+              : "Barangay location is not available offline on this device. Connect while online and open the census form once to load the configured location before continuing offline."
           );
 
           setTimeout(() => {
