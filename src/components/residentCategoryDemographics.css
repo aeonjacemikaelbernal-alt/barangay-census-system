@@ -1,0 +1,44 @@
+.rcd-shell{display:grid;gap:14px;width:100%;color:#172033;font-family:Inter,Arial,sans-serif}
+.rcd-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:2px}
+.rcd-intro>div:first-child>span,.rcd-panel-heading span{display:block;margin-bottom:5px;color:#7e8a9f;font-size:10px;font-weight:800;letter-spacing:.12em}
+.rcd-intro h2{margin:0;font-size:22px;color:#172033}
+.rcd-intro p{margin:6px 0 0;color:#758094;font-size:12px}
+.rcd-live{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #dbe7f2;border-radius:99px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:700}
+.rcd-live i{width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 0 3px #dcfce7}
+.rcd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rcd-stat-card{position:relative;display:flex;align-items:center;gap:12px;min-width:0;padding:16px;background:#fff;border:1px solid #e7eaf0;border-radius:13px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
+.rcd-stat-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:11px;background:#eff6ff;color:#2563eb}
+.rcd-tone-2{background:#ecfdf5;color:#059669}.rcd-tone-3{background:#fff7ed;color:#ea7c0b}.rcd-tone-4{background:#f5f3ff;color:#7c3aed}
+.rcd-stat-card>div:last-child{display:grid;min-width:0;gap:3px}
+.rcd-stat-card span{color:#758094;font-size:10px;font-weight:650}
+.rcd-stat-card strong{overflow:hidden;color:#172033;font-size:22px;line-height:1.15;text-overflow:ellipsis;white-space:nowrap}
+.rcd-stat-card small{overflow:hidden;color:#8993a5;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.rcd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.rcd-panel{min-width:0;padding:18px;background:#fff;border:1px solid #e7eaf0;border-radius:14px;box-shadow:0 2px 8px rgba(15,23,42,.035)}
+.rcd-panel-wide{grid-column:1/-1}
+.rcd-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.rcd-panel-heading h3{margin:3px 0 0;color:#172033;font-size:16px}
+.rcd-donut-layout{display:flex;align-items:center;justify-content:center;gap:22px;min-height:205px}
+.rcd-donut{display:grid;place-items:center;flex:0 0 150px;width:150px;height:150px;border-radius:50%}
+.rcd-donut-hole{display:flex;align-items:center;justify-content:center;flex-direction:column;width:92px;height:92px;border-radius:50%;background:#fff}
+.rcd-donut-hole strong{color:#172033;font-size:23px;line-height:1.1}
+.rcd-donut-hole span{margin-top:4px;color:#8993a5;font-size:10px}
+.rcd-legend{display:grid;gap:10px;min-width:0;max-width:380px;width:100%}
+.rcd-legend-row{display:grid;grid-template-columns:9px minmax(0,1fr) auto auto;align-items:center;gap:8px;font-size:11px}
+.rcd-legend-row i{width:8px;height:8px;border-radius:50%}
+.rcd-legend-row span{overflow:hidden;color:#475569;text-overflow:ellipsis;white-space:nowrap}
+.rcd-legend-row strong{color:#172033;font-size:11px}
+.rcd-legend-row small{min-width:40px;color:#8993a5;text-align:right}
+.rcd-bars{display:grid;gap:12px}
+.rcd-bar-label{display:flex;justify-content:space-between;gap:12px;margin-bottom:5px;font-size:12px}
+.rcd-bar-label span{overflow:hidden;color:#475569;text-overflow:ellipsis;white-space:nowrap}
+.rcd-bar-label strong{flex-shrink:0;color:#172033}
+.rcd-track{height:9px;overflow:hidden;border-radius:99px;background:#edf2f8}
+.rcd-track i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3478d4,#16a085)}
+.rcd-note,.rcd-empty{margin:0;color:#758094;font-size:12px;line-height:1.5}
+.rcd-note{padding:12px 14px;border:1px solid #dbe7f2;border-radius:11px;background:#f8fbff}
+.resident-category-view-tabs{display:flex;justify-content:flex-end;gap:6px;margin:0 0 20px}
+.resident-category-view-tabs button{display:flex;align-items:center;gap:7px;padding:9px 14px;border:1px solid #dfe4eb;border-radius:9px;background:#fff;color:#334155;cursor:pointer;font:inherit;font-size:12px;font-weight:650}
+.resident-category-view-tabs button.active{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
+@media(max-width:1000px){.rcd-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.resident-category-view-tabs{justify-content:flex-start}.rcd-stats,.rcd-grid{grid-template-columns:1fr}.rcd-panel-wide{grid-column:auto}.rcd-donut-layout{align-items:flex-start;flex-direction:column}.rcd-legend{max-width:none}.rcd-stat-card{padding:13px}}

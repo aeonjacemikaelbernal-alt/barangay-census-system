@@ -1,0 +1,133 @@
+.settings-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  border: 1px solid #2563eb;
+  border-radius: 9px;
+  padding: 11px 18px;
+
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.settings-primary-button:hover:not(:disabled) {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.18);
+}
+
+.settings-primary-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 2px;
+}
+
+.settings-primary-button:disabled {
+  cursor: wait;
+}
+
+html[data-theme="dark"] .settings-primary-button {
+  border-color: #3b82f6;
+  background: #3b82f6;
+}
+
+html[data-theme="dark"] .settings-primary-button:hover:not(:disabled) {
+  border-color: #60a5fa;
+  background: #60a5fa;
+}
+
+.settings-password-match.is-empty {
+  color: transparent;
+}
+
+.settings-password-match.is-valid,
+.settings-password-rule.is-met,
+.settings-password-strength-strong {
+  color: #15803d;
+}
+
+.settings-password-match.is-invalid,
+.settings-password-strength-weak {
+  color: #b91c1c;
+}
+
+.settings-password-strength-fair {
+  color: #b45309;
+}
+
+.settings-password-strength-not-rated,
+.settings-password-rule {
+  color: #8993a5;
+}
+
+html[data-theme="dark"] #root main .settings-password-match.is-valid,
+html[data-theme="dark"] #root main .settings-password-rule.is-met,
+html[data-theme="dark"] #root main .settings-password-strength-strong {
+  color: #86efac !important;
+}
+
+html[data-theme="dark"] #root main .settings-password-match.is-invalid,
+html[data-theme="dark"] #root main .settings-password-strength-weak {
+  color: #fca5a5 !important;
+}
+
+html[data-theme="dark"] #root main .settings-password-strength-fair {
+  color: #fcd34d !important;
+}
+
+html[data-theme="dark"] #root main .settings-password-match.is-empty,
+html[data-theme="dark"] #root main .settings-password-strength-not-rated,
+html[data-theme="dark"] #root main .settings-password-rule {
+  color: #a4b1c2 !important;
+}
+
+@media (max-width: 700px) {
+  .settings-page-main {
+    min-width: 0;
+    padding: 18px 14px !important;
+  }
+
+  .settings-page-main > div:first-child {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 12px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .settings-page-main > div:first-child h1 {
+    font-size: 27px !important;
+  }
+
+  .settings-page-main > section {
+    min-width: 0;
+    padding: 16px !important;
+  }
+
+  .settings-page-main div[style*="grid-template-columns"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .settings-page-main :is(input, select, textarea, button) {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .settings-page-main {
+    padding: 14px 10px !important;
+  }
+
+  .settings-page-main > section {
+    padding: 13px !important;
+  }
+}

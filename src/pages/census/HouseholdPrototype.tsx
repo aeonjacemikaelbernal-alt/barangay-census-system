@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import "../../App.css";
+import { supabase } from "../../services/supabaseClient";
 import {
   House,
   UsersRound,
   Info,
   ClipboardList,
   CheckCircle2,
-  ArrowRight,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import type {
@@ -14,6 +17,22 @@ import type {
   Family,
   CensusData,
 } from "../../types/census";
+
+import {
+  findPossibleFamilyConnections,
+} from "../../services/censusStorage";
+import {
+  deleteCensusLocalDraft,
+  getCensusLocalDrafts,
+  markCensusDraftPendingSync,
+  saveCensusLocalDraft,
+  type CensusLocalDraft,
+} from "../../services/censusDraftStorage";
+
+import type {
+  PossibleFamilyConnection,
+  PendingFamilyLink,
+} from "../../services/censusStorage";
 
 type ResidentWithIdentity = Resident & {
   residentId?: string;
@@ -43,6 +62,34 @@ function generateHouseNumber(householdNumber: string): string {
 
 function getResidentId(member: Resident): string {
   return String((member as ResidentWithIdentity).residentId || "");
+}
+
+function formatFormalName(value: string): string {
+  const suffixMap: Record<string, string> = {
+    "jr": "Jr.",
+    "jr.": "Jr.",
+    "sr": "Sr.",
+    "sr.": "Sr.",
+    "ii": "II",
+    "iii": "III",
+    "iv": "IV",
+    "v": "V",
+  };
+
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      const suffix = suffixMap[word.toLowerCase()];
+      if (suffix) return suffix;
+
+      return word
+        .toLowerCase()
+        .replace(/(^|[-'])([a-z])/g, (_, prefix: string, letter: string) =>
+          `${prefix}${letter.toUpperCase()}`
+        );
+    })
+    .join(" ");
 }
 
 function makeResidentId(
@@ -182,172 +229,242 @@ const createFamily = (
  members: [createResident()],
 });
 
+function createDraftId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    "randomUUID" in crypto
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `draft-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+}
+
 type HouseholdPrototypeProps = {
-  onSubmitCensus: (data: CensusData) => void;
+  ownerId: string;
+  onSubmitCensus: (
+    data: CensusData
+  ) => boolean | Promise<boolean>;
+  draftId?: string | null;
+  onDraftsChanged?: () => void;
+  onSaveDraftAndExit?: () => void;
+  onQueuePendingSync?: (
+    draftId: string,
+    data: CensusData
+  ) => void;
 };
 
 function HouseholdPrototype({
+  ownerId,
   onSubmitCensus,
+  draftId,
+  onDraftsChanged,
+  onSaveDraftAndExit,
+  onQueuePendingSync,
 }: HouseholdPrototypeProps) {
+
+  const [restoredDraft] = useState<CensusLocalDraft | null>(
+    () =>
+      draftId
+        ? getCensusLocalDrafts(ownerId).find(
+            (draft) => draft.draftId === draftId
+          ) ?? null
+        : null
+  );
+
+  const [currentDraftId] = useState(
+    () => restoredDraft?.draftId ??
+      draftId ??
+      createDraftId()
+  );
 
   const [censusStep, setCensusStep] = useState<
   "household" | "family" | "resident" | "review"
->("household");
+>(restoredDraft?.censusStep ?? "household");
 
   /* =====================================================
      HOUSEHOLD INFORMATION
   ===================================================== */
 
   const [householdNumber] = useState(() =>
+    restoredDraft?.householdNumber ||
     generateHouseholdNumber()
   );
 
   const [houseNumber] = useState(() =>
+    restoredDraft?.houseNumber ||
     generateHouseNumber(householdNumber)
   );
 
   const [street, setStreet] =
-    useState("");
+    useState(restoredDraft?.street ?? "");
 
   const [purok, setPurok] =
-    useState("");
+    useState(restoredDraft?.purok ?? "");
 
-  const [region, setRegion] = useState("");
-const [province, setProvince] = useState("");
-const [municipality, setMunicipality] = useState("");
-const [barangay, setBarangay] = useState("");
+  type CachedBarangayProfile = {
+    regionName: string;
+    regionCode: string;
+    province: string;
+    provinceCode: string;
+    municipality: string;
+    municipalityCode: string;
+    barangayName: string;
+    barangayCode: string;
+  };
 
-const [regions, setRegions] = useState<any[]>([]);
-const [provinces, setProvinces] = useState<any[]>([]);
-const [municipalities, setMunicipalities] = useState<any[]>([]);
-const [barangays, setBarangays] = useState<any[]>([]);
+  const BARANGAY_PROFILE_CACHE_KEY =
+    "barangay-census:barangay-profile:v1";
 
-useEffect(() => {
-  fetch("https://psgc.gitlab.io/api/regions/")
-    .then((response) => response.json())
-    .then((data) => setRegions(data))
-    .catch((error) =>
-      console.error("Error loading regions:", error)
-    );
-}, []);
+  const readCachedBarangayProfile =
+    (): CachedBarangayProfile | null => {
+      try {
+        const raw = localStorage.getItem(
+          BARANGAY_PROFILE_CACHE_KEY
+        );
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed?.barangayName
+          ? (parsed as CachedBarangayProfile)
+          : null;
+      } catch {
+        return null;
+      }
+    };
 
-useEffect(() => {
-  if (!region) {
-    setProvinces([]);
-    setProvince("");
-    setMunicipalities([]);
-    setMunicipality("");
-    setBarangays([]);
-    setBarangay("");
-    return;
-  }
+  const cachedBarangayProfile =
+    readCachedBarangayProfile();
 
-  fetch(
-    `https://psgc.gitlab.io/api/regions/${region}/provinces/`
-  )
-    .then((response) => response.json())
-    .then((data) => setProvinces(data))
-    .catch((error) =>
-      console.error("Error loading provinces:", error)
-    );
-
-  setProvince("");
-  setMunicipality("");
-  setBarangay("");
-  setMunicipalities([]);
-  setBarangays([]);
-}, [region]);
-
-useEffect(() => {
-  if (!province) {
-    setMunicipalities([]);
-    setMunicipality("");
-    setBarangays([]);
-    setBarangay("");
-    return;
-  }
-
-  fetch(
-    `https://psgc.gitlab.io/api/provinces/${province}/municipalities/`
-  )
-    .then((response) => response.json())
-    .then((data) => setMunicipalities(data))
-    .catch((error) =>
-      console.error("Error loading municipalities:", error)
+  const [barangayProfile, setBarangayProfile] =
+    useState<CachedBarangayProfile | null>(
+      cachedBarangayProfile
     );
 
-  setMunicipality("");
-  setBarangay("");
-  setBarangays([]);
-}, [province]);
-
-useEffect(() => {
-  if (!municipality) {
-    setBarangays([]);
-    setBarangay("");
-    return;
-  }
-
-  fetch(
-    `https://psgc.gitlab.io/api/municipalities/${municipality}/barangays/`
-  )
-    .then((response) => response.json())
-    .then((data) => setBarangays(data))
-    .catch((error) =>
-      console.error("Error loading barangays:", error)
+  const [locationLoading, setLocationLoading] =
+    useState(
+      !cachedBarangayProfile && navigator.onLine
     );
 
-  setBarangay("");
-}, [municipality]);
-
-  const [yearsInBarangay, setYearsInBarangay] =
-    useState("");
-
-  const [previousAddress, setPreviousAddress] =
-    useState("");
-
-  const [currentAddress, setCurrentAddress] =
-  useState("");
+  const [region, setRegion] = useState(
+    restoredDraft?.region ??
+      cachedBarangayProfile?.regionCode ??
+      ""
+  );
+  const [province, setProvince] = useState(
+    restoredDraft?.province ??
+      cachedBarangayProfile?.provinceCode ??
+      ""
+  );
+  const [municipality, setMunicipality] = useState(
+    restoredDraft?.municipality ??
+      cachedBarangayProfile?.municipalityCode ??
+      ""
+  );
+  const [barangay, setBarangay] = useState(
+    restoredDraft?.barangay ??
+      cachedBarangayProfile?.barangayCode ??
+      ""
+  );
 
   useEffect(() => {
-  const selectedRegion =
-    regions.find((item) => item.code === region)?.name || "";
+    let cancelled = false;
 
-  const selectedProvince =
-    provinces.find((item) => item.code === province)?.name || "";
+    const loadBarangayProfile = async () => {
+      if (!navigator.onLine) {
+        setLocationLoading(false);
+        return;
+      }
 
-  const selectedMunicipality =
-    municipalities.find(
-      (item) => item.code === municipality
-    )?.name || "";
+      setLocationLoading(true);
 
-  const selectedBarangay =
-    barangays.find(
-      (item) => item.code === barangay
-    )?.name || "";
+      const { data, error } = await supabase
+        .from("barangay_settings")
+        .select(`
+          region_name,
+          region_code,
+          province,
+          province_code,
+          municipality,
+          municipality_code,
+          barangay_name,
+          barangay_code
+        `)
+        .eq("id", 1)
+        .maybeSingle();
 
-  const addressParts = [
-    selectedRegion,
-    selectedProvince,
-    selectedMunicipality,
-    selectedBarangay,
+      if (error) {
+        console.error(
+          "FAILED TO LOAD BARANGAY PROFILE:",
+          error
+        );
+        if (!cancelled) setLocationLoading(false);
+        return;
+      }
+
+      if (data?.barangay_name && !cancelled) {
+        const profile: CachedBarangayProfile = {
+          regionName: data.region_name || "",
+          regionCode: data.region_code || "",
+          province: data.province || "",
+          provinceCode: data.province_code || "",
+          municipality: data.municipality || "",
+          municipalityCode:
+            data.municipality_code || "",
+          barangayName: data.barangay_name || "",
+          barangayCode: data.barangay_code || "",
+        };
+
+        setBarangayProfile(profile);
+        localStorage.setItem(
+          BARANGAY_PROFILE_CACHE_KEY,
+          JSON.stringify(profile)
+        );
+
+        if (!restoredDraft) {
+          setRegion(profile.regionCode);
+          setProvince(profile.provinceCode);
+          setMunicipality(
+            profile.municipalityCode
+          );
+          setBarangay(profile.barangayCode);
+        }
+      }
+
+      if (!cancelled) setLocationLoading(false);
+    };
+
+    void loadBarangayProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [yearsInBarangay, setYearsInBarangay] =
+    useState(restoredDraft?.yearsInBarangay ?? "");
+
+  const [previousAddress, setPreviousAddress] =
+    useState(restoredDraft?.previousAddress ?? "");
+
+  const locationRegionName =
+    barangayProfile?.regionName || "";
+  const locationProvinceName =
+    barangayProfile?.province || "";
+  const locationMunicipalityName =
+    barangayProfile?.municipality || "";
+  const locationBarangayName =
+    barangayProfile?.barangayName || "";
+
+  const currentAddress = [
     purok,
     street,
-  ].filter(Boolean);
-
-  setCurrentAddress(addressParts.join(", "));
-}, [
-  region,
-  province,
-  municipality,
-  barangay,
-  purok,
-  street,
-  regions,
-  provinces,
-  municipalities,
-  barangays,
-]);
+    locationBarangayName,
+    locationMunicipalityName,
+    locationProvinceName,
+    locationRegionName,
+  ].filter(Boolean).join(", ");
 
     const [validationError, setValidationError] =
   useState("");
@@ -355,26 +472,251 @@ useEffect(() => {
   const [validationFields, setValidationFields] =
   useState<Record<string, boolean>>({});
 
+  const [
+    draftSaveStatus,
+    setDraftSaveStatus,
+  ] = useState<"saving" | "saved">("saved");
+
+  const [
+    draftLastSavedAt,
+    setDraftLastSavedAt,
+  ] = useState<Date | null>(null);
+
+  const draftSaveStatusTimerRef =
+    useRef<number | null>(null);
+
   /* =====================================================
      FAMILY DATA
   ===================================================== */
 
-  const [families, setFamilies] = useState<Family[]>([
-    createFamily(1),
-  ]);
+  const [families, setFamilies] = useState<Family[]>(
+    restoredDraft?.families?.length
+      ? restoredDraft.families
+      : [createFamily(1)]
+  );
 
-  const [activeFamilyIndex, setActiveFamilyIndex] = useState(0);
+  const [activeFamilyIndex, setActiveFamilyIndex] =
+    useState(restoredDraft?.activeFamilyIndex ?? 0);
 
-  const [activeMemberIndex, setActiveMemberIndex] = useState(0);
+  const [activeMemberIndex, setActiveMemberIndex] =
+    useState(restoredDraft?.activeMemberIndex ?? 0);
 
   const [isMemberEditorOpen, setIsMemberEditorOpen] =
   useState(false);
+
+  const [isMembersListModalOpen, setIsMembersListModalOpen] =
+    useState(false);
+
+  const [isOwnFamilyModalOpen, setIsOwnFamilyModalOpen] =
+    useState(false);
+
+  const [pendingFamilyLinks, setPendingFamilyLinks] =
+    useState<PendingFamilyLink[]>(
+      restoredDraft?.pendingFamilyLinks ?? []
+    );
+
+  const [
+    possibleFamilyConnections,
+    setPossibleFamilyConnections,
+  ] = useState<PossibleFamilyConnection[]>([]);
+
+  const [
+    isPossibleFamilyModalOpen,
+    setIsPossibleFamilyModalOpen,
+  ] = useState(false);
+
+  const [
+    possibleFamilyTarget,
+    setPossibleFamilyTarget,
+  ] = useState<{
+    familyIndex: number;
+    memberIndex: number;
+  } | null>(null);
+
+  const [
+    selectedPossibleFamilyUuids,
+    setSelectedPossibleFamilyUuids,
+  ] = useState<string[]>([]);
+
+  const [
+    possibleFamilyRelationship,
+    setPossibleFamilyRelationship,
+  ] = useState("");
+
+  const [
+    possibleFamilyChecking,
+    setPossibleFamilyChecking,
+  ] = useState(false);
+
+  const [
+    possibleFamilyError,
+    setPossibleFamilyError,
+  ] = useState("");
+
+  const dismissedFamilyConnectionKeysRef =
+    useRef<Set<string>>(new Set());
 
 const addMemberLockRef = useRef(false);
 
 const finalSubmitButtonRef = useRef<HTMLButtonElement | null>(null);
 const residentNavLockRef = useRef(false);
+const [residentTransitioning, setResidentTransitioning] = useState(false);
+
+const [isSubmittingCensus, setIsSubmittingCensus] = useState(false);
 const [expandedReviewFamilyIndex, setExpandedReviewFamilyIndex] = useState<number | null>(null);
+
+const [
+  showSaveDraftExitConfirm,
+  setShowSaveDraftExitConfirm,
+] = useState(false);
+
+useEffect(() => {
+  const savedAt = new Date();
+
+  const draft: CensusLocalDraft = {
+    version: 1,
+    draftId: currentDraftId,
+    updatedAt: savedAt.toISOString(),
+    status: "draft",
+    pendingData: undefined,
+    censusStep,
+    householdNumber,
+    houseNumber,
+    street,
+    purok,
+    region,
+    province,
+    municipality,
+    barangay,
+    yearsInBarangay,
+    previousAddress,
+    families,
+    activeFamilyIndex,
+    activeMemberIndex,
+    pendingFamilyLinks,
+  };
+
+  // The status reflects the local persistence this effect performs.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  setDraftSaveStatus("saving");
+
+  if (draftSaveStatusTimerRef.current !== null) {
+    window.clearTimeout(
+      draftSaveStatusTimerRef.current
+    );
+  }
+
+  try {
+    saveCensusLocalDraft(ownerId, draft);
+    setDraftLastSavedAt(savedAt);
+
+    draftSaveStatusTimerRef.current =
+      window.setTimeout(() => {
+        setDraftSaveStatus("saved");
+      }, 350);
+  } catch (error) {
+    console.error(
+      "FAILED TO AUTOSAVE CENSUS DRAFT:",
+      error
+    );
+  }
+
+  return () => {
+    if (draftSaveStatusTimerRef.current !== null) {
+      window.clearTimeout(
+        draftSaveStatusTimerRef.current
+      );
+    }
+  };
+}, [
+  censusStep,
+  currentDraftId,
+  ownerId,
+  householdNumber,
+  houseNumber,
+  street,
+  purok,
+  region,
+  province,
+  municipality,
+  barangay,
+  yearsInBarangay,
+  previousAddress,
+  families,
+  activeFamilyIndex,
+  activeMemberIndex,
+  pendingFamilyLinks,
+]);
+
+useEffect(() => {
+  onDraftsChanged?.();
+}, [
+  censusStep,
+  street,
+  purok,
+  region,
+  province,
+  municipality,
+  barangay,
+  yearsInBarangay,
+  previousAddress,
+  families,
+  activeFamilyIndex,
+  activeMemberIndex,
+]);
+
+
+const hasMeaningfulDraftData =
+  Boolean(
+    street ||
+    purok ||
+    region ||
+    province ||
+    municipality ||
+    barangay ||
+    yearsInBarangay ||
+    previousAddress ||
+    families.some(
+      (family) =>
+        Boolean(family.familyName) ||
+        family.members.some((member) =>
+          Boolean(
+            member.firstName ||
+            member.middleName ||
+            member.lastName ||
+            member.birthDate ||
+            member.familyRelationship ||
+            member.familyMemberStatus
+          )
+        )
+    )
+  );
+
+useEffect(() => {
+  if (!hasMeaningfulDraftData) {
+    return;
+  }
+
+  const handleBeforeUnload = (
+    event: BeforeUnloadEvent
+  ) => {
+    event.preventDefault();
+    event.returnValue = "";
+  };
+
+  window.addEventListener(
+    "beforeunload",
+    handleBeforeUnload
+  );
+
+  return () => {
+    window.removeEventListener(
+      "beforeunload",
+      handleBeforeUnload
+    );
+  };
+}, [hasMeaningfulDraftData]);
+
 
 const runResidentNavigation = (action: () => void) => {
   if (residentNavLockRef.current) {
@@ -382,11 +724,23 @@ const runResidentNavigation = (action: () => void) => {
   }
 
   residentNavLockRef.current = true;
+  setResidentTransitioning(true);
+
   action();
 
   window.setTimeout(() => {
+    document
+      .querySelector(".resident-step-mode")
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+  }, 80);
+
+  window.setTimeout(() => {
     residentNavLockRef.current = false;
-  }, 450);
+    setResidentTransitioning(false);
+  }, 420);
 };
 
   const addFamilyMember = (familyIndex: number) => {
@@ -431,7 +785,68 @@ const runResidentNavigation = (action: () => void) => {
   }, 400);
 };
 
+const removeFamilyMember = (familyIndex: number, memberIndex: number) => {
+  const targetFamily = families[familyIndex];
+  const targetMember = targetFamily?.members[memberIndex];
+
+  if (!targetFamily || !targetMember) return;
+
+  const memberName =
+    targetMember.familyMemberName ||
+    [targetMember.firstName, targetMember.middleName, targetMember.lastName, targetMember.suffix]
+      .filter(Boolean)
+      .join(" ") ||
+    `Member ${memberIndex + 1}`;
+
+  if (!window.confirm(`Remove ${memberName} from this draft family?`)) return;
+
+  const deletedMemberKey = `${targetFamily.id}-${memberIndex}`;
+
+  setFamilies((current) =>
+    current
+      .filter((family) => family.linkedResidentKey !== deletedMemberKey)
+      .map((family) => {
+        if (family.id === targetFamily.id) {
+          return {
+            ...family,
+            members: family.members.filter((_, index) => index !== memberIndex),
+          };
+        }
+
+        if (!family.linkedResidentKey) return family;
+
+        const [sourceFamilyIdText, sourceMemberIndexText] =
+          family.linkedResidentKey.split("-");
+
+        const sourceFamilyId = Number(sourceFamilyIdText);
+        const sourceMemberIndex = Number(sourceMemberIndexText);
+
+        if (
+          sourceFamilyId === targetFamily.id &&
+          sourceMemberIndex > memberIndex
+        ) {
+          return {
+            ...family,
+            linkedResidentKey: `${targetFamily.id}-${sourceMemberIndex - 1}`,
+          };
+        }
+
+        return family;
+      })
+  );
+
+  setActiveMemberIndex((current) => {
+    if (current > memberIndex) return current - 1;
+    if (current === memberIndex) return Math.max(0, memberIndex - 1);
+    return current;
+  });
+
+  setIsMemberEditorOpen(false);
+};
+
 useEffect(() => {
+  // Restore missing stable IDs after rehydrating a local draft.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   setFamilies((current) => {
     let changed = false;
     const updated = current.map((family) => ({
@@ -495,14 +910,15 @@ useEffect(() => {
         changed = true;
       }
 
+      const currentHead = family.members[0] as ResidentWithIdentity;
+
       const syncedHead = {
         ...sourceResident,
         residentId: getResidentId(sourceResident),
-        familyRelationship: "Family Head",
+        familyRelationship:
+          currentHead?.familyRelationship ?? "Family Head",
         hasOwnFamily: "",
       } as ResidentWithIdentity;
-
-      const currentHead = family.members[0] as ResidentWithIdentity;
 
       if (JSON.stringify(currentHead) !== JSON.stringify(syncedHead)) {
         family.members[0] = syncedHead as Resident;
@@ -547,6 +963,136 @@ useEffect(() => {
      RESIDENT INFORMATION
   ===================================================== */
 
+  const skillChoices = [
+    "Farming",
+    "Fishing",
+    "Gardening",
+    "Animal Raising",
+    "Coconut Farming",
+    "Carpentry",
+    "Masonry",
+    "Welding",
+    "Electrical",
+    "Plumbing",
+    "Painting",
+    "Mechanic / Auto Repair",
+    "Driving",
+    "Cooking",
+    "Baking",
+    "Food Processing",
+    "Sewing / Dressmaking",
+    "Haircut / Barbering",
+    "Beauty Care",
+    "Caregiving",
+    "Selling / Vending",
+    "Entrepreneurship",
+    "Handicraft Making",
+    "Computer / IT",
+    "Computer Encoding",
+    "Graphic Design",
+    "Photography / Video Editing",
+  ] as const;
+
+  const getSelectedSkills = (resident: Resident): string[] =>
+    String(resident.skills || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .filter((item) => item !== "Not Applicable");
+
+  const setResidentSkills = (
+    familyIndex: number,
+    memberIndex: number,
+    skills: string[]
+  ) => {
+    updateMember(
+      familyIndex,
+      memberIndex,
+      "skills",
+      Array.from(new Set(skills.map((item) => item.trim()).filter(Boolean))).join(", ")
+    );
+  };
+
+  const occupationChoices = [
+    "Farmer",
+    "Fisherman",
+    "Carpenter",
+    "Construction Worker",
+    "Driver",
+    "Vendor",
+    "Business Owner",
+    "Teacher",
+    "Government Employee",
+    "Private Employee",
+    "Housekeeper",
+    "Housewife / Househusband",
+    "Student",
+    "Retired",
+  ] as const;
+
+  const getSelectedOccupations = (resident: Resident): string[] => {
+    const values = [
+      resident.primaryOccupation,
+      ...(Array.isArray(resident.secondaryOccupations)
+        ? resident.secondaryOccupations
+        : []),
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .filter((value) => value !== "Not Applicable");
+
+    return Array.from(new Set(values));
+  };
+
+  const setResidentOccupations = (
+    familyIndex: number,
+    memberIndex: number,
+    occupations: string[]
+  ) => {
+    setFamilies((current) => {
+      const updated = [...current];
+      const targetFamily = updated[familyIndex];
+      if (!targetFamily) return current;
+
+      const members = [...targetFamily.members];
+      const currentMember = members[memberIndex];
+      if (!currentMember) return current;
+
+      const uniqueOccupations = Array.from(
+        new Set(occupations.map((item) => item.trim()).filter(Boolean))
+      );
+
+      const nextMember: Resident = {
+        ...currentMember,
+        primaryOccupation: uniqueOccupations[0] || "",
+        secondaryOccupations: uniqueOccupations.slice(1),
+      };
+
+      const fixedStatuses = uniqueOccupations
+        .map((occupation) => {
+          if (occupation === "Housewife / Househusband") return "Homemaker";
+          if (occupation === "Student") return "Student";
+          if (occupation === "Retired") return "Retired";
+          return "";
+        })
+        .filter(Boolean);
+
+      if (fixedStatuses.length === 1 && uniqueOccupations.length === 1) {
+        nextMember.employmentStatus = fixedStatuses[0];
+      } else if (
+        ["Homemaker", "Student", "Retired"].includes(
+          String(nextMember.employmentStatus || "")
+        )
+      ) {
+        nextMember.employmentStatus = "";
+      }
+
+      members[memberIndex] = nextMember;
+      updated[familyIndex] = { ...targetFamily, members };
+      return updated;
+    });
+  };
+
   const updateMember = (
     familyIndex: number,
     memberIndex: number,
@@ -570,6 +1116,81 @@ useEffect(() => {
 
       return updated;
     });
+  };
+
+
+  const updateFamilyRelationship = (
+    familyIndex: number,
+    memberIndex: number,
+    value: string
+  ) => {
+    const targetFamily = families[familyIndex];
+    const targetMember = targetFamily?.members[memberIndex];
+
+    if (!targetFamily || !targetMember) return;
+
+    if (value === "Family Head") {
+      const existingHeadIndex = targetFamily.members.findIndex(
+        (member, index) =>
+          index !== memberIndex &&
+          member.familyRelationship === "Family Head"
+      );
+
+      if (existingHeadIndex !== -1) {
+        const existingHead = targetFamily.members[existingHeadIndex];
+
+        const existingHeadName = getResidentDisplayName(existingHead);
+        const newHeadName = getResidentDisplayName(targetMember);
+
+        const confirmed = window.confirm(
+          `${existingHeadName} is currently the Family Head. ` +
+          `Set ${newHeadName} as the new Family Head?`
+        );
+
+        if (!confirmed) return;
+      }
+
+      setFamilies((current) => {
+        const updated = [...current];
+        const family = updated[familyIndex];
+
+        if (!family) return current;
+
+        const members = family.members.map((member, index) => {
+          if (index === memberIndex) {
+            return {
+              ...member,
+              familyRelationship: "Family Head",
+            };
+          }
+
+          if (member.familyRelationship === "Family Head") {
+            return {
+              ...member,
+              familyRelationship: "",
+            };
+          }
+
+          return member;
+        });
+
+        updated[familyIndex] = {
+          ...family,
+          members,
+        };
+
+        return updated;
+      });
+
+      return;
+    }
+
+    updateMember(
+      familyIndex,
+      memberIndex,
+      "familyRelationship",
+      value
+    );
   };
 
 
@@ -620,6 +1241,8 @@ useEffect(() => {
   };
 
   useEffect(() => {
+    // Apply derived age rules to the census form model.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFamilies((current) => {
       let changed = false;
 
@@ -798,6 +1421,240 @@ const createFamilyFromChild = (
     value
   );
 };
+
+  const getFamilyConnectionKey = (
+    familyIndex: number,
+    memberIndex: number
+  ) => {
+    const targetMember =
+      families[familyIndex]?.members[memberIndex];
+
+    return targetMember
+      ? `${getResidentId(targetMember)}:${targetMember.middleName}:${targetMember.lastName}`
+      : `${familyIndex}:${memberIndex}`;
+  };
+
+  const closePossibleFamilyModal = () => {
+    if (possibleFamilyTarget) {
+      dismissedFamilyConnectionKeysRef.current.add(
+        getFamilyConnectionKey(
+          possibleFamilyTarget.familyIndex,
+          possibleFamilyTarget.memberIndex
+        )
+      );
+    }
+
+    setIsPossibleFamilyModalOpen(false);
+    setPossibleFamilyConnections([]);
+    setSelectedPossibleFamilyUuids([]);
+    setPossibleFamilyRelationship("");
+    setPossibleFamilyError("");
+    setPossibleFamilyTarget(null);
+  };
+
+  const familyHasConfirmedExternalLink = (
+    familyIndex: number
+  ): boolean => {
+    const targetFamily = families[familyIndex];
+    if (!targetFamily) return false;
+
+    const residentIds = new Set(
+      targetFamily.members
+        .map((member) => getResidentId(member))
+        .filter(Boolean)
+    );
+
+    return pendingFamilyLinks.some((link) =>
+      residentIds.has(link.residentId)
+    );
+  };
+
+  const checkPossibleFamilyConnection = async (
+    familyIndex: number,
+    memberIndex: number
+  ): Promise<boolean> => {
+    const targetMember =
+      families[familyIndex]?.members[memberIndex];
+
+    if (!targetMember || !navigator.onLine) {
+      return false;
+    }
+
+    const relationship =
+      targetMember.familyRelationship || "";
+
+    // The automatic family-origin suggestion is only useful for
+    // the Family Head or Spouse. Children and other members do not
+    // trigger another suggestion.
+    if (
+      relationship !== "Family Head" &&
+      relationship !== "Spouse"
+    ) {
+      return false;
+    }
+
+    // Once either the Family Head or Spouse confirms an external
+    // family connection, do not ask the other partner again for
+    // this same household family.
+    if (familyHasConfirmedExternalLink(familyIndex)) {
+      return false;
+    }
+
+    if (
+      targetMember.familyMemberStatus !== "Alive" ||
+      !targetMember.firstName.trim() ||
+      !targetMember.lastName.trim()
+    ) {
+      return false;
+    }
+
+    const connectionKey =
+      getFamilyConnectionKey(familyIndex, memberIndex);
+
+    if (
+      dismissedFamilyConnectionKeysRef.current.has(connectionKey) ||
+      pendingFamilyLinks.some(
+        (link) => link.residentId === getResidentId(targetMember)
+      )
+    ) {
+      return false;
+    }
+
+    setPossibleFamilyChecking(true);
+    setPossibleFamilyError("");
+
+    try {
+      const middleNameParts =
+        targetMember.middleName
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+
+      const surnameCandidates = Array.from(
+        new Set(
+          [
+            targetMember.lastName,
+            targetMember.middleName,
+            middleNameParts.at(-1) || "",
+          ].filter(Boolean)
+        )
+      );
+
+      const matches =
+        await findPossibleFamilyConnections(
+          surnameCandidates
+        );
+
+      if (!matches.length) {
+        dismissedFamilyConnectionKeysRef.current.add(connectionKey);
+        return false;
+      }
+
+      setPossibleFamilyConnections(matches);
+      setPossibleFamilyTarget({
+        familyIndex,
+        memberIndex,
+      });
+      setSelectedPossibleFamilyUuids(
+        matches.length === 1
+          ? [matches[0].familyUuid]
+          : []
+      );
+      setPossibleFamilyRelationship("");
+      setIsPossibleFamilyModalOpen(true);
+      return true;
+    } catch (error) {
+      console.error(
+        "FAILED TO CHECK POSSIBLE FAMILY CONNECTION:",
+        error
+      );
+      return false;
+    } finally {
+      setPossibleFamilyChecking(false);
+    }
+  };
+
+  const confirmPossibleFamilyConnection = () => {
+    if (!possibleFamilyTarget) return;
+
+    const selectedFamilies =
+      possibleFamilyConnections.filter(
+        (item) =>
+          selectedPossibleFamilyUuids.includes(
+            item.familyUuid
+          )
+      );
+
+    const targetMember =
+      families[possibleFamilyTarget.familyIndex]
+        ?.members[possibleFamilyTarget.memberIndex];
+
+    if (!selectedFamilies.length || !targetMember) {
+      setPossibleFamilyError(
+        "Please select the related family."
+      );
+      return;
+    }
+
+    if (!possibleFamilyRelationship) {
+      setPossibleFamilyError(
+        "Please select the resident's relationship to that family."
+      );
+      return;
+    }
+
+    const residentId = getResidentId(targetMember);
+
+    if (!residentId) {
+      setPossibleFamilyError(
+        "Resident ID is not ready yet. Close this window and try Done again."
+      );
+      return;
+    }
+
+    const relationship =
+      possibleFamilyRelationship as
+        | "Child"
+        | "Parent";
+
+    // A child belongs to one direct parent-family context in this
+    // workflow. A parent, however, may have several already-encoded
+    // children living in separate households, so Parent supports
+    // multiple selected family heads.
+    const familiesToLink =
+      relationship === "Child"
+        ? selectedFamilies.slice(0, 1)
+        : selectedFamilies;
+
+    const nextLinks: PendingFamilyLink[] =
+      familiesToLink.map((selectedFamily) => ({
+        residentId,
+        sourceFamilyNumber:
+          Number(
+            families[
+              possibleFamilyTarget.familyIndex
+            ]?.id
+          ),
+        targetFamilyUuid: selectedFamily.familyUuid,
+        targetFamilyName: selectedFamily.familyName,
+        targetHouseholdNumber:
+          selectedFamily.householdNumber,
+        targetFamilyHeadResidentUuid:
+          selectedFamily.familyHeadResidentUuid,
+        relationship,
+      }));
+
+    setPendingFamilyLinks((current) => [
+      ...current.filter(
+        (item) => item.residentId !== residentId
+      ),
+      ...nextLinks,
+    ]);
+
+    closePossibleFamilyModal();
+    setIsMemberEditorOpen(false);
+  };
+
   /* =====================================================
      PAGE
   ===================================================== */
@@ -812,40 +1669,17 @@ const currentFamilyHead =
   );
 
 const currentFamilyHeadName = currentFamilyHead
-  ? [
-      currentFamilyHead.firstName,
-      currentFamilyHead.middleName,
-      currentFamilyHead.lastName,
-      currentFamilyHead.suffix,
-    ]
-      .filter(Boolean)
-      .join(" ")
+  ? formatFormalName(
+      [
+        currentFamilyHead.firstName,
+        currentFamilyHead.middleName,
+        currentFamilyHead.lastName,
+        currentFamilyHead.suffix,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    )
   : "";
-
-const ownFamilyMembers =
-  currentFamily?.members.filter(
-    (member) => member.hasOwnFamily === "Yes"
-  ) || [];
-
-const householdRequiredValues = [
-  householdNumber,
-  houseNumber,
-  region,
-  province,
-  municipality,
-  barangay,
-  purok,
-  street,
-];
-
-const completedHouseholdFields =
-  householdRequiredValues.filter(Boolean).length;
-
-const householdProgress = Math.round(
-  (completedHouseholdFields /
-    householdRequiredValues.length) *
-    100
-);
 
 const totalResidents = families.reduce(
   (total, family) => total + family.members.length,
@@ -854,24 +1688,107 @@ const totalResidents = families.reduce(
 
 const additionalFamilyCount = Math.max(families.length - 1, 0);
 
-const getResidentDisplayName = (member: Resident) =>
-  [
-    member.firstName,
-    member.middleName,
-    member.lastName,
-    member.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ") || member.familyMemberName || "Unnamed Resident";
+const getResidentMissingFields = (member: Resident): string[] => {
+  const missingFields: string[] = [];
+  const age = calculateAge(member.birthDate);
+
+  if (!member.firstName.trim()) missingFields.push("First Name");
+  if (!member.lastName.trim()) missingFields.push("Last Name");
+  if (!member.birthDate) missingFields.push("Date of Birth");
+  if (!member.sex) missingFields.push("Sex");
+  if (!member.civilStatus) missingFields.push("Civil Status");
+  if (!member.familyRelationship) missingFields.push("Relationship to Family Head");
+  if (!member.familyMemberStatus) missingFields.push("Member Status");
+
+  // Residents 15+ must have at least one occupation/livelihood selected.
+  // Ages 0-14 are automatically marked Not Applicable by the existing age logic.
+  if (typeof age === "number" && age >= 15 && getSelectedOccupations(member).length === 0) {
+    missingFields.push("Occupation / Source of Livelihood");
+  }
+
+  // Under 18 is automatically Not Eligible; adults must explicitly select voter status.
+  if (!member.voterStatus) missingFields.push("Voter Status");
+
+  // 4Ps must always be answered Yes or No.
+  if (!member.fourPsMember) missingFields.push("4Ps Member");
+
+  const requiresShsHistory =
+    member.education === "Senior High School Level" ||
+    member.education === "Senior High School Graduate" ||
+    member.education === "Vocational / Technical" ||
+    member.education === "College Undergraduate" ||
+    member.education === "College Graduate" ||
+    member.education === "Postgraduate";
+
+  if (requiresShsHistory) {
+    if (!member.seniorHighSchool) {
+      missingFields.push("Senior High School Applicability");
+    } else if (member.seniorHighSchool === "__SHS_APPLICABLE__") {
+      missingFields.push("Senior High School");
+    }
+
+    if (
+      member.seniorHighSchool &&
+      member.seniorHighSchool !== "__SHS_APPLICABLE__" &&
+      member.seniorHighSchool !== "Not Applicable - Pre-K-12 Curriculum" &&
+      !member.shsStrand
+    ) {
+      missingFields.push("SHS Strand");
+    }
+  }
+
+  return missingFields;
+};
+
+const getResidentDisplayName = (member: Resident) => {
+  const rawName =
+    [
+      member.firstName,
+      member.middleName,
+      member.lastName,
+      member.suffix,
+    ]
+      .filter(Boolean)
+      .join(" ") ||
+    member.familyMemberName ||
+    "";
+
+  return rawName
+    ? formatFormalName(rawName)
+    : "Unnamed Resident";
+};
 
 const reviewRegionName =
-  regions.find((item) => item.code === region)?.name || region || "Not selected";
+  locationRegionName || region || "Not configured";
 const reviewProvinceName =
-  provinces.find((item) => item.code === province)?.name || province || "Not selected";
+  locationProvinceName || province || "Not configured";
 const reviewMunicipalityName =
-  municipalities.find((item) => item.code === municipality)?.name || municipality || "Not selected";
+  locationMunicipalityName || municipality || "Not configured";
 const reviewBarangayName =
-  barangays.find((item) => item.code === barangay)?.name || barangay || "Not selected";
+  locationBarangayName || barangay || "Not configured";
+
+const ownFamilySetupItems = families.flatMap((sourceFamily, sourceFamilyIndex) =>
+  sourceFamily.members
+    .map((member, memberIndex) => ({
+      sourceFamily,
+      sourceFamilyIndex,
+      member,
+      memberIndex,
+      linkedResidentKey: `${sourceFamily.id}-${memberIndex}`,
+    }))
+    .filter(({ member }) => member.hasOwnFamily === "Yes")
+    .map((item) => ({
+      ...item,
+      linkedFamilyIndex: families.findIndex(
+        (familyItem) =>
+          familyItem.linkedResidentKey === item.linkedResidentKey
+      ),
+    }))
+);
+
+const pendingOwnFamilyCount = ownFamilySetupItems.filter(
+  (item) => item.linkedFamilyIndex === -1
+).length;
 
   return (
     <div className="census-page">
@@ -897,7 +1814,9 @@ const reviewBarangayName =
           </p>
 
           <span>
-            Barangay Name • Municipality • Province
+            {locationBarangayName
+              ? `${locationBarangayName} • ${locationMunicipalityName} • ${locationProvinceName}`
+              : "Barangay location not configured"}
           </span>
 
         </div>
@@ -929,6 +1848,69 @@ const reviewBarangayName =
           <p className="required-note">
             Fields marked with * are required.
           </p>
+
+          <div
+            aria-live="polite"
+            style={{
+              marginTop: "12px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 12px",
+              borderRadius: "999px",
+              border:
+                draftSaveStatus === "saving"
+                  ? "1px solid #bfdbfe"
+                  : "1px solid #bbf7d0",
+              background:
+                draftSaveStatus === "saving"
+                  ? "#eff6ff"
+                  : "#f0fdf4",
+              color:
+                draftSaveStatus === "saving"
+                  ? "#1d4ed8"
+                  : "#15803d",
+              fontSize: "12px",
+              fontWeight: 700,
+            }}
+          >
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background:
+                  draftSaveStatus === "saving"
+                    ? "#2563eb"
+                    : "#16a34a",
+              }}
+            />
+
+            <span>
+              {draftSaveStatus === "saving"
+                ? "Saving draft..."
+                : "Saved to Draft"}
+            </span>
+
+            {draftSaveStatus === "saved" &&
+              draftLastSavedAt && (
+                <span
+                  style={{
+                    color: "#64748b",
+                    fontWeight: 500,
+                  }}
+                >
+                  •{" "}
+                  {draftLastSavedAt.toLocaleTimeString(
+                    [],
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  )}
+                </span>
+              )}
+          </div>
 
         </section>
 
@@ -1001,6 +1983,32 @@ const reviewBarangayName =
   </div>
 
 </div>
+
+        {censusStep === "resident" && (
+          <div className="resident-section-stepper" aria-label="Resident progress">
+            {(currentFamily?.members || []).map((residentOption: Resident, residentOptionIndex: number) => (
+              <div className="resident-section-step-item" key={residentOptionIndex}>
+                <button
+                  type="button"
+                  className={`resident-section-step ${residentOptionIndex === activeMemberIndex ? "active" : ""} ${residentOptionIndex < activeMemberIndex ? "completed" : ""}`}
+                  onClick={() =>
+                    runResidentNavigation(() => {
+                      setActiveMemberIndex(residentOptionIndex);
+                    })
+                  }
+                  aria-current={residentOptionIndex === activeMemberIndex ? "step" : undefined}
+                  title={getResidentDisplayName(residentOption)}
+                >
+                  <span>{residentOptionIndex < activeMemberIndex ? "✓" : residentOptionIndex + 1}</span>
+                  <small>Resident {residentOptionIndex + 1}</small>
+                </button>
+                {residentOptionIndex < (currentFamily?.members.length || 0) - 1 && (
+                  <div className={`resident-section-line ${residentOptionIndex < activeMemberIndex ? "completed" : ""}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* =================================================
             HOUSEHOLD INFORMATION
@@ -1075,119 +2083,67 @@ const reviewBarangayName =
 
             </div>
 
-            {/* REGION */}
-<div className="form-group">
-  <label>
-    Region *
-  </label>
+            {/* REGISTERED BARANGAY LOCATION */}
+<div
+  className="form-group full-width"
+  style={{
+    padding: "16px",
+    border: "1px solid #dbe7f3",
+    borderRadius: "12px",
+    background: "#f8fbff",
+  }}
+>
+  <label>Registered Barangay Location</label>
 
-  <select
-    value={region}
-    onChange={(event) =>
-      setRegion(event.target.value)
-    }
-  >
-    <option value="">
-      SELECT REGION
-    </option>
-
-    {regions.map((item) => (
-      <option
-        key={item.code}
-        value={item.code}
+  {locationLoading ? (
+    <div style={{ color: "#64748b" }}>
+      Loading configured barangay...
+    </div>
+  ) : barangayProfile ? (
+    <>
+      <strong
+        style={{
+          display: "block",
+          color: "#172033",
+          fontSize: "15px",
+        }}
       >
-        {item.name}
-      </option>
-    ))}
-  </select>
+        {[
+          locationBarangayName,
+          locationMunicipalityName,
+          locationProvinceName,
+          locationRegionName,
+        ]
+          .filter(Boolean)
+          .join(", ")}
+      </strong>
+
+      <small
+        style={{
+          display: "block",
+          marginTop: "5px",
+          color: "#64748b",
+        }}
+      >
+        Configured by the Secretary in System Settings.
+        This location is automatically used for this census.
+      </small>
+    </>
+  ) : (
+    <div
+      style={{
+        color: "#b42318",
+        fontWeight: 700,
+      }}
+    >
+      Barangay location is not available on this device.
+      Configure Barangay Information in Settings while
+      online first.
+    </div>
+  )}
 </div>
 
-{/* PROVINCE */}
-<div className="form-group">
-  <label>
-    Province *
-  </label>
-
-  <select
-    value={province}
-    onChange={(event) =>
-      setProvince(event.target.value)
-    }
-    disabled={!region}
-  >
-    <option value="">
-      SELECT PROVINCE
-    </option>
-
-    {provinces.map((item) => (
-      <option
-        key={item.code}
-        value={item.code}
-      >
-        {item.name}
-      </option>
-    ))}
-  </select>
-</div>
-
-{/* MUNICIPALITY */}
-<div className="form-group">
-  <label>
-    Municipality *
-  </label>
-
-  <select
-    value={municipality}
-    onChange={(event) =>
-      setMunicipality(event.target.value)
-    }
-    disabled={!province}
-  >
-    <option value="">
-      SELECT MUNICIPALITY
-    </option>
-
-    {municipalities.map((item) => (
-      <option
-        key={item.code}
-        value={item.code}
-      >
-        {item.name}
-      </option>
-    ))}
-  </select>
-</div>
-
-{/* BARANGAY */}
-<div className="form-group">
-  <label>
-    Barangay *
-  </label>
-
-  <select
-    value={barangay}
-    onChange={(event) =>
-      setBarangay(event.target.value)
-    }
-    disabled={!municipality}
-  >
-    <option value="">
-      SELECT BARANGAY
-    </option>
-
-    {barangays.map((item) => (
-      <option
-        key={item.code}
-        value={item.code}
-      >
-        {item.name}
-      </option>
-    ))}
-  </select>
-</div>
-        
-
-            {/* PUROK */}
+             {/* PUROK */}
 
 <div className="form-group">
 
@@ -1366,6 +2322,9 @@ setValidationFields((prev) => ({
     <button
       type="button"
       className="census-cancel-button"
+      onClick={() =>
+        setShowSaveDraftExitConfirm(true)
+      }
     >
       Cancel
     </button>
@@ -1400,7 +2359,7 @@ setValidationFields((prev) => ({
           !barangay
         ) {
           setValidationError(
-            "Please complete the household location information."
+            "Barangay location is not configured. Please configure Barangay Information in Settings first."
           );
 
           setTimeout(() => {
@@ -1562,6 +2521,16 @@ setValidationFields((prev) => ({
                           event.target.value
                         )
                       }
+                      onBlur={() => {
+                        if (family.familyName.trim()) {
+                          updateFamilyName(
+                            familyIndex,
+                            formatFormalName(
+                              family.familyName
+                            )
+                          );
+                        }
+                      }}
                       placeholder="Family surname"
                     />
 
@@ -1621,7 +2590,7 @@ setValidationFields((prev) => ({
   {family.members.map(
     (tableMember, tableMemberIndex) => {
 
-      const tableMemberName =
+      const tableMemberRawName =
         tableMember.familyMemberName ||
         [
           tableMember.firstName,
@@ -1630,8 +2599,11 @@ setValidationFields((prev) => ({
           tableMember.suffix,
         ]
           .filter(Boolean)
-          .join(" ") ||
-        `Member ${tableMemberIndex + 1}`;
+          .join(" ");
+
+      const tableMemberName = tableMemberRawName
+        ? formatFormalName(tableMemberRawName)
+        : `Member ${tableMemberIndex + 1}`;
 
       return (
         <div
@@ -1721,22 +2693,32 @@ setValidationFields((prev) => ({
 
           <div className="family-table-actions">
 
-            {family.linkedResidentKey && tableMemberIndex === 0 ? (
-              <span className="linked-resident-badge">
-                Linked Resident
-              </span>
-            ) : (
+            <>
               <button
                 type="button"
-                className="family-edit-member"
+                className="family-icon-action family-edit-member"
                 onClick={() => {
                   setActiveMemberIndex(tableMemberIndex);
                   setIsMemberEditorOpen(true);
                 }}
+                title="Edit member"
+                aria-label={`Edit ${tableMemberName}`}
               >
-                Edit
+                <Pencil size={15} strokeWidth={1.9} />
               </button>
-            )}
+
+              <button
+                type="button"
+                className="family-icon-action family-remove-member"
+                onClick={() =>
+                  removeFamilyMember(familyIndex, tableMemberIndex)
+                }
+                title="Remove member from draft"
+                aria-label={`Remove ${tableMemberName}`}
+              >
+                <Trash2 size={15} strokeWidth={1.9} />
+              </button>
+            </>
 
           </div>
 
@@ -1764,11 +2746,7 @@ setValidationFields((prev) => ({
     activeMemberIndex,
     activeMemberIndex + 1
   )
-  .map(
-    (
-      member,
-      _memberIndex
-    ) => {
+  .map((member) => {
 
 const actualMemberIndex =
   activeMemberIndex;
@@ -1786,41 +2764,42 @@ const actualMemberIndex =
                     return (
                       <>
 
-                      <div className="family-member-editor">
-
-                      <div className="family-active-member-bar">
-
-  <div>
-
-    <span>
-      Member {memberIndex + 1} of {family.members.length}
-    </span>
-
-    <strong>
-      {member.familyMemberName ||
-        `Family Member ${memberIndex + 1}`}
-    </strong>
-
-  </div>
-
-  {member.familyRelationship && (
-    <span className="family-active-role">
-      {member.familyRelationship}
-    </span>
-  )}
-
-</div>
-
-</div>
-
 
                         {/* FAMILY MEMBER BASIC INFORMATION */}
 
-{isMemberEditorOpen && !isLinkedFamilyHead && (
-  <div className="subsection family-member-edit-panel">
+{isMemberEditorOpen && (
+  <div
+    className="family-member-modal-backdrop"
+    role="presentation"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        setIsMemberEditorOpen(false);
+      }
+    }}
+  >
+    <div
+      className="subsection family-member-edit-panel family-member-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="family-member-modal-title"
+    >
 
-  <div className="subsection-label">
-    Family Member Information
+  <div className="family-member-modal-header">
+    <div>
+      <span className="family-member-modal-kicker">Family {familyIndex + 1} • Member {memberIndex + 1}</span>
+      <div className="subsection-label" id="family-member-modal-title">
+        Family Member Information
+      </div>
+    </div>
+    <button
+      type="button"
+      className="family-modal-close-icon"
+      onClick={() => setIsMemberEditorOpen(false)}
+      title="Close"
+      aria-label="Close family member editor"
+    >
+      <X size={18} strokeWidth={1.9} />
+    </button>
   </div>
 
   <div className="form-grid">
@@ -1889,10 +2868,9 @@ const actualMemberIndex =
       <select
   value={member.familyRelationship}
   onChange={(event) =>
-    updateMember(
+    updateFamilyRelationship(
       familyIndex,
       memberIndex,
-      "familyRelationship",
       event.target.value
     )
   }
@@ -1993,13 +2971,43 @@ const actualMemberIndex =
     <button
       type="button"
       className="family-editor-close-button"
-      onClick={() => setIsMemberEditorOpen(false)}
+      disabled={possibleFamilyChecking}
+      onClick={async () => {
+        if (
+          !member.firstName.trim() ||
+          !member.lastName.trim() ||
+          !member.familyRelationship ||
+          !member.familyMemberStatus
+        ) {
+          setValidationError(
+            "Please complete the required Family Member Information first."
+          );
+          window.setTimeout(
+            () => setValidationError(""),
+            2500
+          );
+          return;
+        }
+
+        const openedConnectionModal =
+          await checkPossibleFamilyConnection(
+            familyIndex,
+            memberIndex
+          );
+
+        if (!openedConnectionModal) {
+          setIsMemberEditorOpen(false);
+        }
+      }}
     >
-      Close
+      {possibleFamilyChecking
+        ? "Checking..."
+        : "Done"}
     </button>
   </div>
 
-</div>
+    </div>
+  </div>
 
 )}
 
@@ -2012,7 +3020,7 @@ const actualMemberIndex =
 
       <div>
         <span className="resident-step-kicker">03 • Resident Information</span>
-        <h3>{member.familyMemberName || `Resident ${memberIndex + 1}`}</h3>
+        <h3>{getResidentDisplayName(member) || `Resident ${memberIndex + 1}`}</h3>
         <p>
           {isLinkedFamilyHead
             ? "Linked from the original family. Personal information is review-only here."
@@ -2037,7 +3045,7 @@ const actualMemberIndex =
             key={residentOptionIndex}
             value={residentOptionIndex}
           >
-            {residentOption.familyMemberName ||
+            {getResidentDisplayName(residentOption) ||
               `Member ${residentOptionIndex + 1}`}
           </option>
         ))}
@@ -2094,6 +3102,7 @@ const actualMemberIndex =
                           </div>
                         )}
 
+<>
                         {/* =================================================
                             PERSONAL INFORMATION
                         ================================================= */}
@@ -2771,6 +3780,10 @@ const actualMemberIndex =
       </div>
                         </div>
 
+
+</>
+
+<>
                         {/* =================================================
                             RELATIONSHIP
                         ================================================= */}
@@ -2856,6 +3869,10 @@ const actualMemberIndex =
                         )}
                           
 
+
+</>
+
+<>
                         {/* =================================================
                             CONTACT INFORMATION
                         ================================================= */}
@@ -2915,6 +3932,10 @@ const actualMemberIndex =
                           </div>
 
                         </div>
+
+</>
+
+<>
 {/* =================================================
     EDUCATION
 ================================================= */}
@@ -3160,7 +4181,7 @@ const actualMemberIndex =
 
 
   {/* ================================================
-      JUNIOR HIGH SCHOOL HISTORY
+      JUNIOR HIGH / OLD-CURRICULUM HIGH SCHOOL HISTORY
   ================================================ */}
 
   {(member.education === "Junior High School Level" ||
@@ -3175,7 +4196,7 @@ const actualMemberIndex =
       <div className="form-group full-width">
 
         <label>
-          Junior High School
+          Junior High School / High School (Old Curriculum)
         </label>
 
         <input
@@ -3189,7 +4210,7 @@ const actualMemberIndex =
               event.target.value
             )
           }
-          placeholder="ENTER JUNIOR HIGH SCHOOL"
+          placeholder="ENTER JUNIOR HIGH SCHOOL OR OLD-CURRICULUM HIGH SCHOOL"
         />
 
       </div>
@@ -3198,7 +4219,7 @@ const actualMemberIndex =
 
 
   {/* ================================================
-      SENIOR HIGH SCHOOL HISTORY
+      SENIOR HIGH SCHOOL HISTORY / PRE-K-12
   ================================================ */}
 
   {(member.education === "Senior High School Level" ||
@@ -3208,99 +4229,163 @@ const actualMemberIndex =
     member.education === "College Graduate" ||
     member.education === "Postgraduate") && (
 
+    <>
       <div className="form-group full-width">
 
         <label>
-          Senior High School
+          Senior High School Applicability
         </label>
 
-        <input
-          type="text"
-          value={member.seniorHighSchool}
-          onChange={(event) =>
+        <select
+          value={
+            member.seniorHighSchool === "Not Applicable - Pre-K-12 Curriculum"
+              ? "NOT_APPLICABLE_PRE_K12"
+              : member.seniorHighSchool === "__SHS_APPLICABLE__" ||
+                Boolean(member.seniorHighSchool) ||
+                Boolean(member.shsStrand)
+              ? "APPLICABLE"
+              : ""
+          }
+          onChange={(event) => {
+            const value = event.target.value;
+
+            if (value === "NOT_APPLICABLE_PRE_K12") {
+              updateMember(
+                familyIndex,
+                memberIndex,
+                "seniorHighSchool",
+                "Not Applicable - Pre-K-12 Curriculum"
+              );
+              updateMember(
+                familyIndex,
+                memberIndex,
+                "shsStrand",
+                ""
+              );
+              return;
+            }
+
+            if (value === "APPLICABLE") {
+              if (
+                !member.seniorHighSchool ||
+                member.seniorHighSchool ===
+                  "Not Applicable - Pre-K-12 Curriculum"
+              ) {
+                updateMember(
+                  familyIndex,
+                  memberIndex,
+                  "seniorHighSchool",
+                  "__SHS_APPLICABLE__"
+                );
+              }
+              return;
+            }
+
             updateMember(
               familyIndex,
               memberIndex,
               "seniorHighSchool",
-              event.target.value
-            )
-          }
-          placeholder="ENTER SENIOR HIGH SCHOOL"
-        />
-
-      </div>
-
-  )}
-
-
-  {/* ================================================
-      SHS STRAND
-  ================================================ */}
-
-  {(member.education === "Senior High School Level" ||
-    member.education === "Senior High School Graduate" ||
-    member.education === "Vocational / Technical" ||
-    member.education === "College Undergraduate" ||
-    member.education === "College Graduate" ||
-    member.education === "Postgraduate") && (
-
-      <div className="form-group">
-
-        <label>
-          SHS Strand
-        </label>
-
-        <select
-          value={member.shsStrand}
-          onChange={(event) =>
+              ""
+            );
             updateMember(
               familyIndex,
               memberIndex,
               "shsStrand",
-              event.target.value
-            )
-          }
+              ""
+            );
+          }}
         >
 
           <option value="">
-            SELECT STRAND
+            SELECT APPLICABILITY
           </option>
 
-          <option value="STEM">
-            STEM
+          <option value="APPLICABLE">
+            APPLICABLE — ATTENDED / ATTENDING SENIOR HIGH SCHOOL
           </option>
 
-          <option value="ABM">
-            ABM
-          </option>
-
-          <option value="HUMSS">
-            HUMSS
-          </option>
-
-          <option value="GAS">
-            GAS
-          </option>
-
-          <option value="TVL">
-            TVL
-          </option>
-
-          <option value="Arts and Design">
-            ARTS AND DESIGN
-          </option>
-
-          <option value="Sports">
-            SPORTS
-          </option>
-
-          <option value="Other">
-            OTHER
+          <option value="NOT_APPLICABLE_PRE_K12">
+            NOT APPLICABLE — PRE-K-12 / OLD CURRICULUM
           </option>
 
         </select>
 
+        <small style={{ display: "block", marginTop: "6px", color: "#64748b" }}>
+          Select Not Applicable for residents whose high-school education followed
+          the old curriculum before Senior High School was part of K-12.
+        </small>
+
       </div>
+
+      {member.seniorHighSchool !== "Not Applicable - Pre-K-12 Curriculum" &&
+        Boolean(member.seniorHighSchool || member.shsStrand) && (
+
+        <>
+          <div className="form-group full-width">
+
+            <label>
+              Senior High School
+            </label>
+
+            <input
+              type="text"
+              value={
+                member.seniorHighSchool === "__SHS_APPLICABLE__"
+                  ? ""
+                  : member.seniorHighSchool
+              }
+              onChange={(event) =>
+                updateMember(
+                  familyIndex,
+                  memberIndex,
+                  "seniorHighSchool",
+                  event.target.value || "__SHS_APPLICABLE__"
+                )
+              }
+              placeholder="ENTER SENIOR HIGH SCHOOL"
+            />
+
+          </div>
+
+          <div className="form-group">
+
+            <label>
+              SHS Strand
+            </label>
+
+            <select
+              value={member.shsStrand}
+              onChange={(event) =>
+                updateMember(
+                  familyIndex,
+                  memberIndex,
+                  "shsStrand",
+                  event.target.value
+                )
+              }
+            >
+
+              <option value="">
+                SELECT STRAND
+              </option>
+
+              <option value="STEM">STEM</option>
+              <option value="ABM">ABM</option>
+              <option value="HUMSS">HUMSS</option>
+              <option value="GAS">GAS</option>
+              <option value="TVL">TVL</option>
+              <option value="Arts and Design">ARTS AND DESIGN</option>
+              <option value="Sports">SPORTS</option>
+              <option value="Other">OTHER</option>
+
+            </select>
+
+          </div>
+        </>
+
+      )}
+
+    </>
 
   )}
 
@@ -3569,6 +4654,10 @@ const actualMemberIndex =
 </div>
 
 
+
+</>
+
+<>
                         {/* =================================================
     EMPLOYMENT & OCCUPATION
 ================================================= */}
@@ -3579,168 +4668,189 @@ const actualMemberIndex =
 
 <div className="form-grid">
 
-  {/* PRIMARY OCCUPATION */}
+  {/* MULTIPLE OCCUPATIONS / SOURCES OF LIVELIHOOD */}
+  <div className="form-group full-width">
+    <label>Occupations / Sources of Livelihood *</label>
 
-  <div className="form-group">
+    {typeof calculateAge(member.birthDate) === "number" &&
+    Number(calculateAge(member.birthDate)) <= 14 ? (
+      <input
+        type="text"
+        value="NOT APPLICABLE"
+        disabled
+        className="age-auto-field"
+      />
+    ) : (
+      <>
+        <small style={{ display: "block", marginBottom: "10px" }}>
+          Select all occupations that apply to this resident.
+        </small>
 
-  <label>
-    Primary Occupation
-  </label>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+            gap: "4px 12px",
+          }}
+        >
+          {occupationChoices.map((occupation) => {
+            const selectedOccupations = getSelectedOccupations(member);
+            const checked = selectedOccupations.includes(occupation);
 
-  <select
-    value={member.primaryOccupation}
-    disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
-    className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
-    onChange={(event) => {
+            return (
+              <label
+                key={occupation}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "3px 2px",
+                  border: "none",
+                  borderRadius: "4px",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "11px",
+                  lineHeight: 1.2,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    minWidth: "14px",
+                    margin: 0,
+                    cursor: "pointer",
+                  }}
+                  onChange={(event) => {
+                    const current = getSelectedOccupations(member);
+                    const customOccupations = current.filter(
+                      (item) =>
+                        !occupationChoices.includes(
+                          item as (typeof occupationChoices)[number]
+                        )
+                    );
 
-      const occupation = event.target.value;
+                    const standardOccupations = current.filter((item) =>
+                      occupationChoices.includes(
+                        item as (typeof occupationChoices)[number]
+                      )
+                    );
 
-      updateMember(
-        familyIndex,
-        memberIndex,
-        "primaryOccupation",
-        occupation
-      );
+                    const nextStandard = event.target.checked
+                      ? Array.from(new Set([...standardOccupations, occupation]))
+                      : standardOccupations.filter(
+                          (item) => item !== occupation
+                        );
 
-      /*
-       * Automatic Employment Status
-       *
-       * These occupations have a fixed status.
-       */
+                    setResidentOccupations(
+                      familyIndex,
+                      memberIndex,
+                      [...nextStandard, ...customOccupations]
+                    );
+                  }}
+                />
+                <span>{occupation.toUpperCase()}</span>
+              </label>
+            );
+          })}
 
-      if (
-        occupation === "Housewife / Househusband"
-      ) {
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "3px 2px",
+              border: "none",
+              borderRadius: "4px",
+              background: "transparent",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "11px",
+              lineHeight: 1.2,
+            }}
+          >
+            <input
+              type="checkbox"
+              style={{
+                width: "14px",
+                height: "14px",
+                minWidth: "14px",
+                margin: 0,
+                cursor: "pointer",
+              }}
+              checked={getSelectedOccupations(member).some(
+                (item) =>
+                  !occupationChoices.includes(
+                    item as (typeof occupationChoices)[number]
+                  )
+              )}
+              onChange={(event) => {
+                const current = getSelectedOccupations(member);
+                const standard = current.filter((item) =>
+                  occupationChoices.includes(
+                    item as (typeof occupationChoices)[number]
+                  )
+                );
 
-        updateMember(
-          familyIndex,
-          memberIndex,
-          "employmentStatus",
-          "Homemaker"
-        );
+                setResidentOccupations(
+                  familyIndex,
+                  memberIndex,
+                  event.target.checked ? [...standard, "Other"] : standard
+                );
+              }}
+            />
+            <span>OTHER</span>
+          </label>
+        </div>
 
-      } else if (occupation === "Student") {
+        {getSelectedOccupations(member).some(
+          (item) =>
+            !occupationChoices.includes(
+              item as (typeof occupationChoices)[number]
+            )
+        ) && (
+          <div style={{ marginTop: "10px" }}>
+            <label>Specify Other Occupation(s)</label>
+            <input
+              type="text"
+              value={getSelectedOccupations(member)
+                .filter(
+                  (item) =>
+                    !occupationChoices.includes(
+                      item as (typeof occupationChoices)[number]
+                    ) && item !== "Other"
+                )
+                .join(", ")}
+              onChange={(event) => {
+                const standard = getSelectedOccupations(member).filter(
+                  (item) =>
+                    occupationChoices.includes(
+                      item as (typeof occupationChoices)[number]
+                    )
+                );
 
-        updateMember(
-          familyIndex,
-          memberIndex,
-          "employmentStatus",
-          "Student"
-        );
+                const custom = event.target.value
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter(Boolean);
 
-      } else if (occupation === "Retired") {
-
-        updateMember(
-          familyIndex,
-          memberIndex,
-          "employmentStatus",
-          "Retired"
-        );
-
-      } else {
-
-        /*
-         * For occupations such as:
-         * Farmer
-         * Fisherman
-         * Carpenter
-         * Driver
-         *
-         * the user can choose:
-         * Employed or Self-employed.
-         */
-
-        const currentStatus =
-          member.employmentStatus;
-
-        if (
-          currentStatus === "Homemaker" ||
-          currentStatus === "Student" ||
-          currentStatus === "Retired"
-        ) {
-
-          updateMember(
-            familyIndex,
-            memberIndex,
-            "employmentStatus",
-            ""
-          );
-
-        }
-
-      }
-
-    }}
-  >
-
-    <option value="">
-      SELECT PRIMARY OCCUPATION
-    </option>
-    <option value="Not Applicable">NOT APPLICABLE</option>
-
-    <option value="Farmer">
-      FARMER
-    </option>
-
-    <option value="Fisherman">
-      FISHERMAN
-    </option>
-
-    <option value="Carpenter">
-      CARPENTER
-    </option>
-
-    <option value="Construction Worker">
-      CONSTRUCTION WORKER
-    </option>
-
-    <option value="Driver">
-      DRIVER
-    </option>
-
-    <option value="Vendor">
-      VENDOR
-    </option>
-
-    <option value="Business Owner">
-      BUSINESS OWNER
-    </option>
-
-    <option value="Teacher">
-      TEACHER
-    </option>
-
-    <option value="Government Employee">
-      GOVERNMENT EMPLOYEE
-    </option>
-
-    <option value="Private Employee">
-      PRIVATE EMPLOYEE
-    </option>
-
-    <option value="Housekeeper">
-      HOUSEKEEPER / DOMESTIC WORKER
-    </option>
-
-    <option value="Housewife / Househusband">
-      HOUSEWIFE / HOUSEHUSBAND
-    </option>
-
-    <option value="Student">
-      STUDENT
-    </option>
-
-    <option value="Retired">
-      RETIRED
-    </option>
-
-    <option value="Other">
-      OTHER
-    </option>
-
-  </select>
-
-</div>
+                setResidentOccupations(
+                  familyIndex,
+                  memberIndex,
+                  [...standard, ...(custom.length ? custom : ["Other"])]
+                );
+              }}
+              placeholder="Example: Tailor, Mechanic, Online Seller"
+            />
+            <small>Separate multiple occupations with commas.</small>
+          </div>
+        )}
+      </>
+    )}
+  </div>
 
 
   {/* EMPLOYMENT STATUS */}
@@ -3801,45 +4911,6 @@ const actualMemberIndex =
   </select>
 
 </div>
-
-  {/* OTHER OCCUPATIONS */}
-
-  <div className="form-group full-width">
-
-    <label>
-      Other Occupations / Sources of Livelihood
-    </label>
-
-    <input
-      type="text"
-      value={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "NOT APPLICABLE" : member.secondaryOccupations.join(", ")}
-      disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
-      className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
-      onChange={(event) => {
-
-        const occupations =
-          event.target.value
-            .split(",")
-            .map((occupation) => occupation.trim())
-            .filter(Boolean);
-
-        updateMember(
-          familyIndex,
-          memberIndex,
-          "secondaryOccupations",
-          occupations as any
-        );
-
-      }}
-      placeholder="Example: Fisherman, Carpenter"
-    />
-
-    <small>
-      Separate multiple occupations with commas.
-    </small>
-
-  </div>
-
 
   {/* EMPLOYER / BUSINESS */}
 
@@ -3911,60 +4982,202 @@ const actualMemberIndex =
                             SKILLS
                         ================================================= */}
 
-                        <div className="subsection-label">
-                          Skills & Specialization
-                        </div>
+                        <div className="form-group full-width" style={{ marginTop: "14px", marginBottom: "14px" }}>
+                          <label>Skills / Specialties</label>
 
-                        <div className="form-grid">
-
-                          <div className="form-group full-width">
-
-                            <label>
-                              Skills / Specialties
-                            </label>
-
-                            <textarea
-                              value={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "NOT APPLICABLE" : member.skills}
-                              disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14}
-                              className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) <= 14 ? "age-auto-field" : ""}
-                              onChange={(event) =>
-                                updateMember(
-                                  familyIndex,
-                                  memberIndex,
-                                  "skills",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Example: Fishing, carpentry, welding, farming"
-                              rows={3}
+                          {typeof calculateAge(member.birthDate) === "number" &&
+                          Number(calculateAge(member.birthDate)) <= 14 ? (
+                            <input
+                              type="text"
+                              value="NOT APPLICABLE"
+                              disabled
+                              className="age-auto-field"
                             />
+                          ) : (
+                            (() => {
+                              const selectedSkills = getSelectedSkills(member);
+                              const customSkills = selectedSkills.filter(
+                                (skill) => !skillChoices.includes(skill as (typeof skillChoices)[number])
+                              );
+                              const hasOtherSkill = customSkills.length > 0;
 
-                          </div>
+                              return (
+                                <>
+                                  <div
+                                    style={{
+                                      display: "grid",
+                                      gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                                      gap: "4px 12px",
+                                      padding: "4px 0",
+                                    }}
+                                  >
+                                    {skillChoices.map((skill) => {
+                                      const checked = selectedSkills.includes(skill);
 
+                                      return (
+                                        <label
+                                          key={skill}
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                            padding: "3px 2px",
+                                            cursor: "pointer",
+                                            fontWeight: 600,
+                                            fontSize: "11px",
+                                            lineHeight: 1.2,
+                                          }}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={(event) => {
+                                              const nextSkills = event.target.checked
+                                                ? [...selectedSkills, skill]
+                                                : selectedSkills.filter((item) => item !== skill);
+                                              setResidentSkills(familyIndex, memberIndex, nextSkills);
+                                            }}
+                                            style={{
+                                              width: "14px",
+                                              height: "14px",
+                                              minWidth: "14px",
+                                              margin: 0,
+                                              cursor: "pointer",
+                                            }}
+                                          />
+                                          <span>{skill}</span>
+                                        </label>
+                                      );
+                                    })}
+
+                                    <label
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        padding: "3px 2px",
+                                        cursor: "pointer",
+                                        fontWeight: 600,
+                                        fontSize: "11px",
+                                        lineHeight: 1.2,
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={hasOtherSkill}
+                                        onChange={(event) => {
+                                          if (!event.target.checked) {
+                                            setResidentSkills(
+                                              familyIndex,
+                                              memberIndex,
+                                              selectedSkills.filter((item) =>
+                                                skillChoices.includes(item as (typeof skillChoices)[number])
+                                              )
+                                            );
+                                          }
+                                        }}
+                                        style={{
+                                          width: "14px",
+                                          height: "14px",
+                                          minWidth: "14px",
+                                          margin: 0,
+                                          cursor: "pointer",
+                                        }}
+                                      />
+                                      <span>Other</span>
+                                    </label>
+                                  </div>
+
+                                  {hasOtherSkill && (
+                                    <input
+                                      type="text"
+                                      value={customSkills.join(", ")}
+                                      onChange={(event) => {
+                                        const standardSkills = selectedSkills.filter((item) =>
+                                          skillChoices.includes(item as (typeof skillChoices)[number])
+                                        );
+                                        const nextCustomSkills = event.target.value
+                                          .split(",")
+                                          .map((item) => item.trim())
+                                          .filter(Boolean);
+                                        setResidentSkills(
+                                          familyIndex,
+                                          memberIndex,
+                                          [...standardSkills, ...nextCustomSkills]
+                                        );
+                                      }}
+                                      placeholder="Specify other skill(s), separated by commas"
+                                      style={{ marginTop: "6px" }}
+                                    />
+                                  )}
+
+                                  {!hasOtherSkill && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setResidentSkills(
+                                          familyIndex,
+                                          memberIndex,
+                                          [...selectedSkills, "Other skill"]
+                                        )
+                                      }
+                                      style={{
+                                        marginTop: "5px",
+                                        padding: 0,
+                                        border: 0,
+                                        background: "transparent",
+                                        color: "#2563eb",
+                                        fontSize: "11px",
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      + Specify another skill
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            })()
+                          )}
                         </div>
 
+
+</>
+
+<>
                         {/* =================================================
-                            VOTER
+                            VOTER & OTHER INFORMATION
                         ================================================= */}
 
-                        <div className="subsection-label">
-                          Voter Information
+                        <div
+                          className="subsection-label"
+                          style={{ marginTop: "14px", marginBottom: "10px" }}
+                        >
+                          Other Information
                         </div>
 
-                        <div className="form-grid">
-
+                        <div
+                          className="form-grid"
+                          style={{
+                            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                            gap: "10px 12px",
+                            marginTop: 0,
+                          }}
+                        >
                           <div className="form-group">
-
-                            <label>
-                              Voter Status
-                            </label>
-
+                            <label>Voter Status *</label>
                             <select
-                              value={
-                                member.voterStatus
+                              value={member.voterStatus}
+                              disabled={
+                                typeof calculateAge(member.birthDate) === "number" &&
+                                Number(calculateAge(member.birthDate)) < 18
                               }
-                              disabled={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) < 18}
-                              className={typeof calculateAge(member.birthDate) === "number" && Number(calculateAge(member.birthDate)) < 18 ? "age-auto-field" : ""}
+                              className={
+                                typeof calculateAge(member.birthDate) === "number" &&
+                                Number(calculateAge(member.birthDate)) < 18
+                                  ? "age-auto-field"
+                                  : ""
+                              }
                               onChange={(event) =>
                                 updateMember(
                                   familyIndex,
@@ -3974,51 +5187,17 @@ const actualMemberIndex =
                                 )
                               }
                             >
-
-                              <option value="">
-                                Select status
-                              </option>
-
-                              <option value="Registered Voter">
-                                Registered Voter
-                              </option>
-
-                              <option value="Not Registered">
-                                Not Registered
-                              </option>
-
-                              <option value="Not Eligible">
-                                Not Eligible
-                              </option>
-
+                              <option value="">Select status</option>
+                              <option value="Registered Voter">Registered Voter</option>
+                              <option value="Not Registered">Not Registered</option>
+                              <option value="Not Eligible">Not Eligible</option>
                             </select>
-
                           </div>
 
-                        </div>
-
-                        {/* =================================================
-                            OTHER INFORMATION
-                        ================================================= */}
-
-                        <div className="subsection-label">
-                          Other Information
-                        </div>
-
-                        <div className="form-grid">
-                           
-                            {/* DISABILITY */}
-
                           <div className="form-group">
-
-                            <label>
-                              Person with Disability
-                            </label>
-
+                            <label>Person with Disability</label>
                             <select
-                              value={
-                                member.disability
-                              }
+                              value={member.disability}
                               onChange={(event) =>
                                 updateMember(
                                   familyIndex,
@@ -4028,33 +5207,16 @@ const actualMemberIndex =
                                 )
                               }
                             >
-
-                              <option value="">
-                                Select
-                              </option>
-
-                              <option value="No">
-                                No
-                              </option>
-
-                              <option value="Yes">
-                                Yes
-                              </option>
-
+                              <option value="">Select</option>
+                              <option value="No">No</option>
+                              <option value="Yes">Yes</option>
                             </select>
-
                           </div>
 
-                                                        <div className="form-group">
-
-                            <label>
-                              4Ps Member
-                            </label>
-
+                          <div className="form-group">
+                            <label>4Ps Member *</label>
                             <select
-                              value={
-                                member.fourPsMember
-                              }
+                              value={member.fourPsMember}
                               onChange={(event) =>
                                 updateMember(
                                   familyIndex,
@@ -4064,54 +5226,35 @@ const actualMemberIndex =
                                 )
                               }
                             >
-
-                              <option value="">
-                                Select
-                              </option>
-
-                              <option value="No">
-                                No
-                              </option>
-
-                              <option value="Yes">
-                                Yes
-                              </option>
-
+                              <option value="">Select</option>
+                              <option value="No">No</option>
+                              <option value="Yes">Yes</option>
                             </select>
-
                           </div>
 
-                          {/* SENIOR CITIZEN */}
-
-
                           <div className="form-group">
+                            <label>Senior Citizen</label>
+                            <input
+                              type="text"
+                              value={
+                                (() => {
+                                  const age = Number(calculateAge(member.birthDate));
 
-  <label>
-    Senior Citizen
-  </label>
+                                  if (!member.birthDate || Number.isNaN(age)) {
+                                    return "";
+                                  }
 
-  <input
-    type="text"
-    value={
-      (() => {
-        const age = Number(calculateAge(member.birthDate));
+                                  return age >= 60 ? "YES" : "NO";
+                                })()
+                              }
+                              readOnly
+                              className="age-auto-field"
+                              placeholder="AUTO FROM AGE"
+                            />
+                          </div>
+                        </div>
 
-        if (!member.birthDate || Number.isNaN(age)) {
-          return "";
-        }
-
-        return age >= 60
-          ? "SENIOR CITIZEN"
-          : "NOT A SENIOR CITIZEN";
-      })()
-    }
-    readOnly
-    placeholder="AUTOMATICALLY DETERMINED FROM AGE"
-    
-  />
-  </div>
-
-</div>
+</>
 
 </div>
 
@@ -4123,7 +5266,7 @@ const actualMemberIndex =
                 <div
   className="legacy-member-nav"
   style={{
-    display: "flex",
+    display: censusStep === "resident" ? "none" : "flex",
     justifyContent: "center",
     marginTop: "20px",
   }}
@@ -4149,7 +5292,7 @@ const actualMemberIndex =
     </button>
   )}
 
-  {activeMemberIndex < family.members.length - 1 && (
+  {activeMemberIndex < (currentFamily?.members.length || 0) - 1 && (
     <button
       type="button"
       onClick={() =>
@@ -4163,6 +5306,7 @@ const actualMemberIndex =
     </button>
   )}
 </div>
+
 </div>
                 </div>
 
@@ -4224,6 +5368,26 @@ const actualMemberIndex =
                             return;
                           }
 
+                          const familyHeadCount =
+                            family.members.filter(
+                              (member) =>
+                                member.familyRelationship === "Family Head"
+                            ).length;
+
+                          if (familyHeadCount !== 1) {
+                            setValidationError(
+                              familyHeadCount === 0
+                                ? "Please select exactly one Family Head for this family."
+                                : "This family has more than one Family Head. Please keep only one."
+                            );
+
+                            window.setTimeout(() => {
+                              setValidationError("");
+                            }, 2500);
+
+                            return;
+                          }
+
                           setValidationError("");
                           setIsMemberEditorOpen(false);
                           setActiveMemberIndex(0);
@@ -4242,91 +5406,77 @@ const actualMemberIndex =
                     <button
                       type="button"
                       className="resident-footer-secondary"
+                      disabled={residentTransitioning}
                       onClick={() => {
+                        if (activeMemberIndex > 0) {
+                          runResidentNavigation(() => {
+                            setActiveMemberIndex((current) => current - 1);
+                          });
+                          return;
+                        }
                         setIsMemberEditorOpen(false);
                         setCensusStep("family");
                       }}
                     >
-                      ← Back to Family
+                      {activeMemberIndex > 0 ? "← Previous Resident" : "← Back to Family"}
                     </button>
 
                     <div className="resident-footer-center">
                       <span>
-                        Resident {activeMemberIndex + 1} of {family.members.length}
+                        Resident {activeMemberIndex + 1} of {currentFamily?.members.length || 0}
+                        {" • "}
+                        {currentFamily?.members[activeMemberIndex] ? getResidentDisplayName(currentFamily.members[activeMemberIndex]) : "Resident"}
                       </span>
                     </div>
 
                     <div className="resident-footer-actions">
-                      {activeMemberIndex > 0 && (
-                        <button
-                          type="button"
-                          className="resident-footer-secondary"
-                          onClick={() =>
-                            runResidentNavigation(() =>
-                              setActiveMemberIndex((current) => current - 1)
-                            )
-                          }
-                        >
-                          ← Previous Member
-                        </button>
-                      )}
-
                       {activeMemberIndex < family.members.length - 1 ? (
                         <button
                           type="button"
                           className="resident-footer-primary"
+                          disabled={residentTransitioning}
                           onClick={() =>
-                            runResidentNavigation(() =>
-                              setActiveMemberIndex((current) => current + 1)
-                            )
+                            runResidentNavigation(() => {
+                              setActiveMemberIndex((current) => current + 1);
+                            })
                           }
                         >
-                          Save & Next Member →
+                          {residentTransitioning ? "Loading Next Resident..." : "Save & Next Resident →"}
                         </button>
                       ) : (
                         <button
                           type="button"
                           className="resident-footer-primary"
+                          disabled={residentTransitioning}
                           onClick={() =>
                             runResidentNavigation(() => {
-                            const ownFamilyMemberIndex = family.members.findIndex(
-                              (residentMember) =>
-                                residentMember.hasOwnFamily === "Yes"
-                            );
-
-                            if (
-                              activeFamilyIndex === 0 &&
-                              ownFamilyMemberIndex !== -1
-                            ) {
-                              const linkedResidentKey =
-                                `${family.id}-${ownFamilyMemberIndex}`;
-
-                              const linkedFamilyIndex = families.findIndex(
-                                (familyItem) =>
-                                  familyItem.linkedResidentKey === linkedResidentKey
+                              const ownFamilyMemberIndex = family.members.findIndex(
+                                (residentMember) => residentMember.hasOwnFamily === "Yes"
                               );
 
-                              if (linkedFamilyIndex !== -1) {
-                                setActiveFamilyIndex(linkedFamilyIndex);
-                              } else {
-                                createFamilyFromChild(
-                                  activeFamilyIndex,
-                                  ownFamilyMemberIndex
+                              if (activeFamilyIndex === 0 && ownFamilyMemberIndex !== -1) {
+                                const linkedResidentKey = `${family.id}-${ownFamilyMemberIndex}`;
+                                const linkedFamilyIndex = families.findIndex(
+                                  (familyItem) => familyItem.linkedResidentKey === linkedResidentKey
                                 );
+
+                                if (linkedFamilyIndex !== -1) {
+                                  setActiveFamilyIndex(linkedFamilyIndex);
+                                } else {
+                                  createFamilyFromChild(activeFamilyIndex, ownFamilyMemberIndex);
+                                }
+
+                                setActiveMemberIndex(0);
+                                setIsMemberEditorOpen(false);
+                                setCensusStep("family");
+                                return;
                               }
 
-                              setActiveMemberIndex(0);
-                              setIsMemberEditorOpen(false);
-                              setCensusStep("family");
-                              return;
-                            }
-
-                            setActiveMemberIndex(0);
-                            setIsMemberEditorOpen(false);
-                            setCensusStep("review");
-                          })}
+                              setCensusStep("review");
+                            })
+                          }
                         >
-                          Save & Continue →
+                          Continue to Review →
                         </button>
                       )}
                     </div>
@@ -4507,12 +5657,21 @@ const actualMemberIndex =
       >
         ← Back to Residents
       </button>
-        <button type="button" className="review-secondary-button">Cancel</button>
+        <button
+          type="button"
+          className="review-secondary-button"
+          onClick={() =>
+            setShowSaveDraftExitConfirm(true)
+          }
+        >
+          Cancel
+        </button>
       </div>
 
         <button
           type="button"
           className="review-submit-button"
+          disabled={isSubmittingCensus}
           onClick={() => {
             for (let familyIndex = 0; familyIndex < families.length; familyIndex++) {
               const familyToCheck = families[familyIndex];
@@ -4522,18 +5681,23 @@ const actualMemberIndex =
                 return;
               }
 
+              const familyHeadCount = familyToCheck.members.filter(
+                (resident) => resident.familyRelationship === "Family Head"
+              ).length;
+
+              if (familyHeadCount !== 1) {
+                setValidationError(
+                  familyHeadCount === 0
+                    ? `Family ${familyIndex + 1} must have exactly one Family Head.`
+                    : `Family ${familyIndex + 1} has more than one Family Head. Please keep only one.`
+                );
+                window.setTimeout(() => setValidationError(""), 3500);
+                return;
+              }
+
               for (let memberIndex = 0; memberIndex < familyToCheck.members.length; memberIndex++) {
                 const member = familyToCheck.members[memberIndex];
-                const missingFields: string[] = [];
-
-                if (!member.firstName.trim()) missingFields.push("First Name");
-                if (!member.lastName.trim()) missingFields.push("Last Name");
-                if (!member.birthDate) missingFields.push("Date of Birth");
-                if (!member.birthPlace.trim()) missingFields.push("Place of Birth");
-                if (!member.sex) missingFields.push("Sex");
-                if (!member.civilStatus) missingFields.push("Civil Status");
-                if (!member.nationality) missingFields.push("Nationality");
-                if (!member.religion) missingFields.push("Religion");
+                const missingFields = getResidentMissingFields(member);
 
                 if (missingFields.length > 0) {
                   setActiveFamilyIndex(familyIndex);
@@ -4551,7 +5715,9 @@ const actualMemberIndex =
             finalSubmitButtonRef.current?.click();
           }}
         >
-          Submit Census
+          {isSubmittingCensus
+            ? "Submitting Census..."
+            : "Submit Census"}
         </button>
     </div>
 
@@ -4579,39 +5745,6 @@ const actualMemberIndex =
     </div>
   </section>
 
-  <section className="context-card review-only-card review-completion-card">
-    <div className="context-card-title review-green-title">
-      <CheckCircle2 size={16} strokeWidth={1.8} />
-      <span>Completion Status</span>
-    </div>
-    <div className="review-completion-list">
-      <div><CheckCircle2 size={14} /><span><strong>Household Information</strong><small>Completed</small></span></div>
-      <div><CheckCircle2 size={14} /><span><strong>Family Information</strong><small>Completed</small></span></div>
-      <div><CheckCircle2 size={14} /><span><strong>Resident Information</strong><small>Completed</small></span></div>
-      <div><CheckCircle2 size={14} /><span><strong>Review & Submit</strong><small>Current Step</small></span></div>
-    </div>
-  </section>
-
-  <section className="context-card review-only-card review-how-card">
-    <div className="context-card-title">
-      <Info size={16} strokeWidth={1.8} />
-      <span>How it works</span>
-    </div>
-    <ol className="review-how-list">
-      <li>Review all information for accuracy.</li>
-      <li>Use “Edit” or “View / Edit” to make changes.</li>
-      <li>Click “Submit Census” to finalize.</li>
-      <li>Verify everything before submission.</li>
-    </ol>
-  </section>
-
-  <section className="context-card review-only-card review-help-card">
-    <div className="context-card-title">
-      <Info size={16} strokeWidth={1.8} />
-      <span>Need Help?</span>
-    </div>
-    <p>If you find any issues, go back and edit the information before submitting.</p>
-  </section>
 
   {/* =========================================
       CONTEXT
@@ -4625,6 +5758,8 @@ const actualMemberIndex =
       <span>
         {censusStep === "household"
           ? "Household Context"
+          : censusStep === "review"
+          ? "Household Family Summary"
           : "Family Context"}
       </span>
     </div>
@@ -4663,6 +5798,30 @@ const actualMemberIndex =
 
       </div>
 
+    ) : censusStep === "review" ? (
+
+      <div className="context-details">
+        <div>
+          <span>Total Families</span>
+          <strong>{families.length}</strong>
+        </div>
+
+        <div>
+          <span>Total Residents</span>
+          <strong>{totalResidents}</strong>
+        </div>
+
+        <div>
+          <span>Additional Families</span>
+          <strong>{additionalFamilyCount}</strong>
+        </div>
+
+        <div>
+          <span>Pending Family Setup</span>
+          <strong>{pendingOwnFamilyCount}</strong>
+        </div>
+      </div>
+
     ) : (
 
       <div className="context-details">
@@ -4670,8 +5829,9 @@ const actualMemberIndex =
         <div>
           <span>Family Name</span>
           <strong>
-            {currentFamily?.familyName ||
-              "Not yet entered"}
+            {currentFamily?.familyName
+              ? formatFormalName(currentFamily.familyName)
+              : "Not yet entered"}
           </strong>
         </div>
 
@@ -4691,26 +5851,11 @@ const actualMemberIndex =
         </div>
 
         <div>
-          <span>Additional Families</span>
+          <span>Family Position</span>
           <strong>
-            {Math.max(families.length - 1, 0)}
+            Family {activeFamilyIndex + 1} of {families.length}
           </strong>
         </div>
-
-        {activeFamilyIndex > 0 && (
-          <button
-            type="button"
-            className="back-family-one-button"
-            onClick={() => {
-              setActiveFamilyIndex(0);
-              setActiveMemberIndex(0);
-              setIsMemberEditorOpen(false);
-              setCensusStep("family");
-            }}
-          >
-            ← Back to Family 1
-          </button>
-        )}
 
       </div>
 
@@ -4720,46 +5865,190 @@ const actualMemberIndex =
 
 
   {/* =========================================
-      MEMBERS LIST
+      MEMBERS — COMPACT SUMMARY
   ========================================= */}
 
-  <section className="context-card">
-
+  <section className="context-card context-members-compact">
     <div className="context-card-title">
       <UsersRound size={16} strokeWidth={1.8} />
-
-      <span>Members List</span>
+      <span>
+        {censusStep === "review" ? "All Members" : "Members"}
+      </span>
     </div>
 
-    {censusStep === "household" ? (
-
-      <div className="context-empty-state">
-
-        <ClipboardList
-          size={21}
-          strokeWidth={1.7}
-        />
-
+    <div className="context-members-compact-row">
+      <div>
         <strong>
-          Family members will appear here
+          {censusStep === "household"
+            ? 0
+            : censusStep === "review"
+            ? totalResidents
+            : currentFamily?.members.length || 0}
         </strong>
-
-        <p>
-          Complete the household information
-          first, then continue to Family
-          Information.
-        </p>
-
+        <span>
+          {censusStep === "household"
+            ? "Available after Household Information"
+            : censusStep === "review"
+            ? `member(s) across ${families.length} family/families`
+            : "member(s) in this family"}
+        </span>
       </div>
 
-    ) : currentFamily?.members.length ? (
+      {censusStep !== "household" && (
+        <button
+          type="button"
+          className="context-view-members-button"
+          onClick={() => setIsMembersListModalOpen(true)}
+          disabled={
+            censusStep === "review"
+              ? totalResidents === 0
+              : !currentFamily?.members.length
+          }
+        >
+          View Details
+        </button>
+      )}
+    </div>
+  </section>
 
-      <div className="context-member-list">
+  {censusStep !== "household" && ownFamilySetupItems.length > 0 && (
+    <section className="context-card context-own-family-compact">
+      <div className="context-card-title">
+        <UsersRound size={16} strokeWidth={1.8} />
+        <span>Own Family Setup</span>
+      </div>
 
-        {currentFamily.members.map(
-          (member, index) => {
+      <div className="context-own-family-row">
+        <div>
+          <strong>{ownFamilySetupItems.length}</strong>
+          <span>
+            {pendingOwnFamilyCount > 0
+              ? `${pendingOwnFamilyCount} still need setup`
+              : "all linked families are ready"}
+          </span>
+        </div>
 
-            const memberName =
+        <button
+          type="button"
+          className="context-manage-own-family-button"
+          onClick={() => setIsOwnFamilyModalOpen(true)}
+        >
+          Manage
+        </button>
+      </div>
+    </section>
+  )}
+
+  {(censusStep === "family" || censusStep === "resident") &&
+    families.length > 1 && (
+      <section className="context-card family-navigator-card">
+        <div className="context-card-title">
+          <UsersRound size={16} strokeWidth={1.8} />
+          <span>Families in Household</span>
+        </div>
+
+        <div className="family-navigator-list">
+          {families.map((familyItem, familyIndex) => (
+            <div
+              className={`family-navigator-row ${
+                familyIndex === activeFamilyIndex ? "current" : ""
+              }`}
+              key={familyItem.id}
+            >
+              <div>
+                <strong>Family {familyIndex + 1}</strong>
+                <span>
+                  {familyItem.familyName ? formatFormalName(familyItem.familyName) : "Surname not entered"}
+                  {" • "}
+                  {familyItem.members.length} member(s)
+                </span>
+              </div>
+
+              {familyIndex === activeFamilyIndex ? (
+                <span className="family-navigator-current">
+                  Current
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="family-navigator-open"
+                  onClick={() => {
+                    setActiveFamilyIndex(familyIndex);
+                    setActiveMemberIndex(0);
+                    setIsMemberEditorOpen(false);
+                    setCensusStep("family");
+                  }}
+                >
+                  Open
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
+
+</aside>
+
+</div>
+
+{isMembersListModalOpen && censusStep !== "household" && (
+  <div
+    className="family-member-modal-backdrop"
+    role="presentation"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        setIsMembersListModalOpen(false);
+      }
+    }}
+  >
+    <section
+      className="context-members-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="members-list-modal-title"
+    >
+      <div className="family-member-modal-header">
+        <div>
+          <span className="family-member-modal-kicker">
+            {censusStep === "review"
+              ? "Household Review"
+              : `Family ${activeFamilyIndex + 1}`}
+          </span>
+          <h3 id="members-list-modal-title">
+            {censusStep === "review"
+              ? "All Family Members"
+              : "Members Details"}
+          </h3>
+        </div>
+
+        <button
+          type="button"
+          className="family-modal-close-icon"
+          onClick={() => setIsMembersListModalOpen(false)}
+          aria-label="Close members details"
+          title="Close"
+        >
+          <X size={18} strokeWidth={1.9} />
+        </button>
+      </div>
+
+      <div className="context-members-modal-list">
+        {censusStep === "review" ? (
+          families.map((familyItem, familyIndex) => (
+            <div className="context-members-family-group" key={familyItem.id}>
+              <div className="context-members-family-heading">
+                <strong>Family {familyIndex + 1}</strong>
+                <span>
+                  {familyItem.familyName ? formatFormalName(familyItem.familyName) : "Surname not entered"}
+                  {" • "}
+                  {familyItem.members.length} member(s)
+                </span>
+              </div>
+
+              {familyItem.members.map((member, memberIndex) => {
+                const memberRawName =
               [
                 member.firstName,
                 member.middleName,
@@ -4767,350 +6056,241 @@ const actualMemberIndex =
                 member.suffix,
               ]
                 .filter(Boolean)
-                .join(" ") ||
-              `Member ${index + 1}`;
+                .join(" ");
 
-            const memberLinkedFamilyKey = currentFamily
-              ? `${currentFamily.id}-${index}`
-              : "";
+            const memberName = memberRawName
+              ? formatFormalName(memberRawName)
+              : `Member ${memberIndex + 1}`;
 
-            const memberLinkedFamilyIndex = families.findIndex(
-              (familyItem) =>
-                familyItem.linkedResidentKey === memberLinkedFamilyKey
+                return (
+                  <div
+                    className="context-members-modal-row"
+                    key={`${familyItem.id}-${memberIndex}`}
+                  >
+                    <span className="member-number">
+                      {memberIndex + 1}
+                    </span>
+
+                    <div className="context-members-modal-name">
+                      <strong>{memberName}</strong>
+                      <small>
+                        {member.familyRelationship ||
+                          "Relationship not selected"}
+                        {" • "}
+                        {member.familyMemberStatus ||
+                          "Status not selected"}
+                      </small>
+                    </div>
+
+                    {member.hasOwnFamily === "Yes" && (
+                      <span className="member-role">Own Family</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        ) : (
+          currentFamily?.members.map((member, index) => {
+            const memberRawName =
+              [
+                member.firstName,
+                member.middleName,
+                member.lastName,
+                member.suffix,
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+            const memberName = memberRawName
+              ? formatFormalName(memberRawName)
+              : `Member ${index + 1}`;
+
+            return (
+              <div className="context-members-modal-row" key={index}>
+                <span className="member-number">{index + 1}</span>
+
+                <div className="context-members-modal-name">
+                  <strong>{memberName}</strong>
+                  <small>
+                    {member.familyRelationship ||
+                      "Relationship not selected"}
+                    {" • "}
+                    {member.familyMemberStatus ||
+                      "Status not selected"}
+                  </small>
+                </div>
+
+                {member.hasOwnFamily === "Yes" && (
+                  <span className="member-role">Own Family</span>
+                )}
+              </div>
             );
+          })
+        )}
+      </div>
+
+      <div className="context-members-modal-footer">
+        <button
+          type="button"
+          className="census-cancel-button"
+          onClick={() => setIsMembersListModalOpen(false)}
+        >
+          Close
+        </button>
+      </div>
+    </section>
+  </div>
+)}
+
+{isOwnFamilyModalOpen && censusStep !== "household" && (
+  <div
+    className="family-member-modal-backdrop"
+    role="presentation"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        setIsOwnFamilyModalOpen(false);
+      }
+    }}
+  >
+    <section
+      className="context-own-family-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="own-family-modal-title"
+    >
+      <div className="family-member-modal-header">
+        <div>
+          <span className="family-member-modal-kicker">
+            Household Families
+          </span>
+          <h3 id="own-family-modal-title">
+            Own Family Setup
+          </h3>
+          <p>
+            Manage every member in this household who is marked as having an own family.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="family-modal-close-icon"
+          onClick={() => setIsOwnFamilyModalOpen(false)}
+          aria-label="Close own family setup"
+          title="Close"
+        >
+          <X size={18} strokeWidth={1.9} />
+        </button>
+      </div>
+
+      <div className="context-own-family-modal-list">
+        {ownFamilySetupItems.map(
+          ({
+            sourceFamily,
+            sourceFamilyIndex,
+            member,
+            memberIndex,
+            linkedFamilyIndex,
+          }) => {
+            const memberRawName =
+              [
+                member.firstName,
+                member.middleName,
+                member.lastName,
+                member.suffix,
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+            const memberName = memberRawName
+              ? formatFormalName(memberRawName)
+              : `Member ${memberIndex + 1}`;
+
+            const hasLinkedFamily = linkedFamilyIndex !== -1;
 
             return (
               <div
-                className="context-member-row"
-                key={index}
+                className="context-own-family-modal-row"
+                key={`${sourceFamily.id}-${memberIndex}`}
               >
+                <div className="context-own-family-person">
+                  <span className="member-number">
+                    {memberIndex + 1}
+                  </span>
 
-                <span className="member-number">
-                  {index + 1}
-                </span>
-
-                <div className="member-summary">
-
-                  <strong>
-                    {memberName}
-                  </strong>
-
-                  {member.hasOwnFamily ===
-                    "Yes" && (
-                    <>
-                      <small>
-                        Has Own Family: Yes
-                      </small>
-
-                      <button
-                        type="button"
-                        className="open-own-family-button"
-                        onClick={() => {
-                          if (memberLinkedFamilyIndex !== -1) {
-                            setActiveFamilyIndex(memberLinkedFamilyIndex);
-                          } else {
-                            createFamilyFromChild(activeFamilyIndex, index);
-                          }
-
-                          setActiveMemberIndex(0);
-                          setIsMemberEditorOpen(false);
-                          setCensusStep("family");
-                        }}
-                      >
-                        {memberLinkedFamilyIndex !== -1
-                          ? `Open Family ${memberLinkedFamilyIndex + 1} →`
-                          : "Set Up Own Family →"}
-                      </button>
-                    </>
-                  )}
-
+                  <div>
+                    <strong>{memberName}</strong>
+                    <small>
+                      From Family {sourceFamilyIndex + 1}
+                      {" • "}
+                      {member.familyRelationship ||
+                        "Relationship not selected"}
+                    </small>
+                  </div>
                 </div>
 
-                {member.familyRelationship && (
-                  <span className="member-role">
-                    {member.familyRelationship}
+                <div className="context-own-family-status">
+                  <span
+                    className={
+                      hasLinkedFamily
+                        ? "own-family-status ready"
+                        : "own-family-status pending"
+                    }
+                  >
+                    {hasLinkedFamily
+                      ? `Family ${linkedFamilyIndex + 1} ready`
+                      : "Needs setup"}
                   </span>
-                )}
 
+                  <button
+                    type="button"
+                    className="context-own-family-action"
+                    onClick={() => {
+                      setIsMemberEditorOpen(false);
+
+                      if (hasLinkedFamily) {
+                        setActiveFamilyIndex(linkedFamilyIndex);
+                        setActiveMemberIndex(0);
+                      } else {
+                        setActiveFamilyIndex(sourceFamilyIndex);
+                        setActiveMemberIndex(memberIndex);
+                        createFamilyFromChild(
+                          sourceFamilyIndex,
+                          memberIndex
+                        );
+                      }
+
+                      setCensusStep("family");
+                      setIsOwnFamilyModalOpen(false);
+                    }}
+                  >
+                    {hasLinkedFamily
+                      ? "Open Family"
+                      : "Set Up Family"}
+                  </button>
+                </div>
               </div>
             );
           }
         )}
-
       </div>
 
-    ) : (
-
-      <div className="context-empty-state">
-        No members added yet.
+      <div className="context-own-family-modal-footer">
+        <button
+          type="button"
+          className="census-cancel-button"
+          onClick={() => setIsOwnFamilyModalOpen(false)}
+        >
+          Close
+        </button>
       </div>
-
-    )}
-
-  </section>
-
-
-  {/* =========================================
-      HOW IT WORKS
-  ========================================= */}
-
-  <section className="context-card logic-card">
-
-    <div className="context-card-title">
-      <Info size={16} strokeWidth={1.8} />
-
-      <span>
-        How it works
-      </span>
-    </div>
-
-    {censusStep === "household" ? (
-
-      <>
-        <p className="logic-question">
-          Complete the household first.
-        </p>
-
-        <ol className="logic-list">
-          <li>
-            Enter the household identification.
-          </li>
-
-          <li>
-            Select the complete location.
-          </li>
-
-          <li>
-            Purok automatically determines the
-            street.
-          </li>
-
-          <li>
-            Save & Continue opens Family
-            Information.
-          </li>
-        </ol>
-
-        <div className="logic-example">
-          Next: Family Information
-          <ArrowRight
-            size={14}
-            strokeWidth={1.8}
-          />
-        </div>
-      </>
-
-    ) : (
-
-      <>
-        <p className="logic-question">
-          When you mark "Yes" in Has Own
-          Family:
-        </p>
-
-        <ol className="logic-list">
-          <li>
-            The member is identified as having
-            a separate family unit.
-          </li>
-
-          <li>
-            That member may become the Family
-            Head of an additional family.
-          </li>
-
-          <li>
-            Members of that new family will be
-            encoded separately.
-          </li>
-        </ol>
-
-        {ownFamilyMembers.length > 0 && (
-          <div className="logic-example">
-
-            <CheckCircle2
-              size={14}
-              strokeWidth={1.8}
-            />
-
-            {ownFamilyMembers.length} member
-            {ownFamilyMembers.length !== 1
-              ? "s"
-              : ""}{" "}
-            marked Yes
-
-          </div>
-        )}
-      </>
-
-    )}
-
-  </section>
-
-
-  {/* =========================================
-      PROGRESS
-  ========================================= */}
-
-  <section className="context-card progress-card">
-
-    <div className="context-card-title">
-      <ClipboardList
-        size={16}
-        strokeWidth={1.8}
-      />
-
-      <span>Progress</span>
-    </div>
-
-    <div className="context-progress-heading">
-
-      <span>
-        {censusStep === "household"
-          ? "Household Information"
-          : `Family ${activeFamilyIndex + 1}`}
-      </span>
-
-      <strong>
-        {censusStep === "household"
-          ? `${householdProgress}%`
-          : `${currentFamily?.members.length || 0} members`}
-      </strong>
-
-    </div>
-
-    <div className="context-progress-track">
-
-      <div
-        className="context-progress-fill"
-        style={{
-          width:
-            censusStep === "household"
-              ? `${householdProgress}%`
-              : "50%",
-        }}
-      />
-
-    </div>
-
-    <p className="context-progress-text">
-      {censusStep === "household"
-        ? `${completedHouseholdFields} of ${householdRequiredValues.length} required household fields completed`
-        : "Family information is currently being encoded."}
-    </p>
-
-  </section>
-
-
-  {/* =========================================
-      BOTTOM NOTE
-  ========================================= */}
-
-  <div className="context-save-note">
-
-    <CheckCircle2
-      size={16}
-      strokeWidth={1.8}
-    />
-
-    <p>
-      Click "Save & Continue" to proceed
-      without submitting the census yet.
-    </p>
-
+    </section>
   </div>
-
-</aside>
-
-</div>
-
-{censusStep === "household" && (
-  <section className="census-next-flow">
-
-    <div className="census-next-flow-title">
-      <span>Step 1</span>
-
-      <div>
-        <strong>Household Information</strong>
-        <small>What happens next?</small>
-      </div>
-    </div>
-
-
-    <div className="census-flow-items">
-
-      <div className="census-flow-item active">
-        <div className="census-flow-icon">
-          <House size={17} strokeWidth={1.8} />
-        </div>
-
-        <div>
-          <strong>Household</strong>
-          <span>Complete household details</span>
-        </div>
-      </div>
-
-
-      <ArrowRight
-        className="census-flow-arrow"
-        size={17}
-        strokeWidth={1.7}
-      />
-
-
-      <div className="census-flow-item">
-        <div className="census-flow-icon">
-          <UsersRound size={17} strokeWidth={1.8} />
-        </div>
-
-        <div>
-          <strong>Family</strong>
-          <span>Add family members</span>
-        </div>
-      </div>
-
-
-      <ArrowRight
-        className="census-flow-arrow"
-        size={17}
-        strokeWidth={1.7}
-      />
-
-
-      <div className="census-flow-item">
-        <div className="census-flow-icon">
-          <ClipboardList size={17} strokeWidth={1.8} />
-        </div>
-
-        <div>
-          <strong>Resident</strong>
-          <span>Complete individual details</span>
-        </div>
-      </div>
-
-
-      <ArrowRight
-        className="census-flow-arrow"
-        size={17}
-        strokeWidth={1.7}
-      />
-
-
-      <div className="census-flow-item">
-        <div className="census-flow-icon">
-          <CheckCircle2 size={17} strokeWidth={1.8} />
-        </div>
-
-        <div>
-          <strong>Review & Submit</strong>
-          <span>Check all information</span>
-        </div>
-      </div>
-
-    </div>
-
-  </section>
 )}
+
+
+
+
 
 
  
@@ -5131,7 +6311,7 @@ const actualMemberIndex =
     ref={finalSubmitButtonRef}
     type="button"
     className="next-button"
-    onClick={() => {
+    onClick={async () => {
 
       console.log("SUBMIT BUTTON CLICKED");
 
@@ -5186,6 +6366,41 @@ const actualMemberIndex =
 }
 
   // =================================================
+// CHECK EXACTLY ONE FAMILY HEAD PER FAMILY
+// =================================================
+
+for (
+  let familyIndex = 0;
+  familyIndex < families.length;
+  familyIndex++
+) {
+  const familyToValidate = families[familyIndex];
+
+  const familyHeadCount =
+    familyToValidate?.members.filter(
+      (member) =>
+        member.familyRelationship === "Family Head"
+    ).length ?? 0;
+
+  if (familyHeadCount !== 1) {
+    setActiveFamilyIndex(familyIndex);
+    setCensusStep("family");
+
+    setValidationError(
+      familyHeadCount === 0
+        ? `Family ${familyIndex + 1} must have exactly one Family Head.`
+        : `Family ${familyIndex + 1} has more than one Family Head. Please keep only one.`
+    );
+
+    setTimeout(() => {
+      setValidationError("");
+    }, 3000);
+
+    return;
+  }
+}
+
+// =================================================
 // CHECK ALL FAMILY RESIDENT INFORMATION
 // =================================================
 
@@ -5214,16 +6429,7 @@ for (
     memberIndex++
   ) {
     const member = familyToValidate.members[memberIndex];
-    const missingFields: string[] = [];
-
-    if (!member.firstName.trim()) missingFields.push("First Name");
-    if (!member.lastName.trim()) missingFields.push("Last Name");
-    if (!member.birthDate) missingFields.push("Date of Birth");
-    if (!member.birthPlace.trim()) missingFields.push("Place of Birth");
-    if (!member.sex) missingFields.push("Sex");
-    if (!member.civilStatus) missingFields.push("Civil Status");
-    if (!member.nationality) missingFields.push("Nationality");
-    if (!member.religion) missingFields.push("Religion");
+    const missingFields = getResidentMissingFields(member);
 
     if (missingFields.length > 0) {
       setActiveFamilyIndex(familyIndex);
@@ -5245,21 +6451,13 @@ for (
 
 setValidationError("");
 
-const selectedRegionName =
-  regions.find((item) => item.code === region)?.name || "";
+const selectedRegionName = locationRegionName;
 
-const selectedProvinceName =
-  provinces.find((item) => item.code === province)?.name || "";
+const selectedProvinceName = locationProvinceName;
 
-const selectedMunicipalityName =
-  municipalities.find(
-    (item) => item.code === municipality
-  )?.name || "";
+const selectedMunicipalityName = locationMunicipalityName;
 
-const selectedBarangayName =
-  barangays.find(
-    (item) => item.code === barangay
-  )?.name || "";
+const selectedBarangayName = locationBarangayName;
 
 const censusData: CensusData = {
   householdNumber,
@@ -5282,6 +6480,12 @@ const censusData: CensusData = {
 
   families,
 };
+
+(
+  censusData as CensusData & {
+    __pendingFamilyLinks?: PendingFamilyLink[];
+  }
+).__pendingFamilyLinks = pendingFamilyLinks;
 
 // =================================================
 // ADDITIONAL FAMILY
@@ -5312,12 +6516,35 @@ if (activeFamilyIndex === 0) {
   }
 }
 
-  onSubmitCensus(censusData);
+  if (!navigator.onLine) {
+    markCensusDraftPendingSync(
+      ownerId,
+      currentDraftId,
+      censusData
+    );
+    onQueuePendingSync?.(
+      currentDraftId,
+      censusData
+    );
+    onDraftsChanged?.();
+    return;
+  }
 
-  console.log(
-    "BARANGAY CENSUS DATA",
-    censusData
+  setIsSubmittingCensus(true);
+
+  const submitSucceeded =
+    await onSubmitCensus(censusData);
+
+  if (!submitSucceeded) {
+    setIsSubmittingCensus(false);
+    return;
+  }
+
+  deleteCensusLocalDraft(
+    ownerId,
+    currentDraftId
   );
+  onDraftsChanged?.();
 
   }}
 style={{
@@ -5332,6 +6559,546 @@ style={{
 
         </div>
 
+
+
+
+        {isSubmittingCensus && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 100001,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+              background: "rgba(15, 23, 42, 0.58)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                width: "min(420px, 100%)",
+                padding: "30px 26px",
+                borderRadius: "18px",
+                background: "#ffffff",
+                boxShadow:
+                  "0 25px 60px rgba(15, 23, 42, 0.28)",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  margin: "0 auto 16px",
+                  borderRadius: "50%",
+                  border: "4px solid #dbeafe",
+                  borderTopColor: "#2563eb",
+                  animation: "censusSubmitSpin .8s linear infinite",
+                }}
+              />
+
+              <h2
+                style={{
+                  margin: "0 0 8px",
+                  color: "#172033",
+                  fontSize: "21px",
+                }}
+              >
+                Submitting Census
+              </h2>
+
+              <p
+                style={{
+                  margin: 0,
+                  color: "#64748b",
+                  fontSize: "13px",
+                  lineHeight: 1.6,
+                }}
+              >
+                Saving the household, families, residents,
+                and confirmed family connections. Please wait.
+              </p>
+
+              <style>
+                {`@keyframes censusSubmitSpin {
+                  to { transform: rotate(360deg); }
+                }`}
+              </style>
+            </div>
+          </div>
+        )}
+
+        {isPossibleFamilyModalOpen && possibleFamilyTarget && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 100000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+              background: "rgba(15, 23, 42, 0.55)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="possible-family-title"
+              style={{
+                width: "min(620px, 100%)",
+                maxHeight: "86vh",
+                overflowY: "auto",
+                padding: "24px",
+                borderRadius: "18px",
+                background: "#ffffff",
+                boxShadow:
+                  "0 25px 60px rgba(15, 23, 42, 0.28)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "14px",
+                  alignItems: "flex-start",
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      display: "block",
+                      marginBottom: "6px",
+                      color: "#2563eb",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      letterSpacing: ".08em",
+                    }}
+                  >
+                    POSSIBLE FAMILY CONNECTION
+                  </span>
+
+                  <h2
+                    id="possible-family-title"
+                    style={{
+                      margin: 0,
+                      color: "#172033",
+                      fontSize: "21px",
+                    }}
+                  >
+                    Possible related family found
+                  </h2>
+
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      color: "#64748b",
+                      fontSize: "13px",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    The current surname or middle/maiden surname
+                    matches an existing family. Only a direct
+                    Parent ↔ Child connection is saved. If this person
+                    is only a sibling or another relative, choose
+                    No, Continue.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closePossibleFamilyModal}
+                  style={{
+                    border: 0,
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "9px",
+                    background: "#f1f5f9",
+                    cursor: "pointer",
+                  }}
+                  aria-label="Close possible family connection"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  marginTop: "18px",
+                  padding: "12px 14px",
+                  borderRadius: "10px",
+                  background: "#f8fafc",
+                  color: "#475569",
+                  fontSize: "13px",
+                }}
+              >
+                Resident:{" "}
+                <strong>
+                  {formatFormalName(
+                    [
+                      families[possibleFamilyTarget.familyIndex]
+                        ?.members[possibleFamilyTarget.memberIndex]
+                        ?.firstName,
+                      families[possibleFamilyTarget.familyIndex]
+                        ?.members[possibleFamilyTarget.memberIndex]
+                        ?.middleName,
+                      families[possibleFamilyTarget.familyIndex]
+                        ?.members[possibleFamilyTarget.memberIndex]
+                        ?.lastName,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                  )}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  marginTop: "16px",
+                  padding: "10px 12px",
+                  borderRadius: "9px",
+                  background: "#f8fafc",
+                  color: "#64748b",
+                  fontSize: "12px",
+                  lineHeight: 1.55,
+                }}
+              >
+                If this resident is the <strong>Parent</strong>,
+                you may select more than one existing child living
+                in different households. If this resident is the
+                <strong> Child</strong>, select only the one parent-family.
+              </div>
+
+              <div
+                style={{
+                  marginTop: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "9px",
+                }}
+              >
+                {possibleFamilyConnections.map(
+                  (connection) => {
+                    const selected =
+                      selectedPossibleFamilyUuids.includes(
+                        connection.familyUuid
+                      );
+
+                    return (
+                      <button
+                        key={connection.familyUuid}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPossibleFamilyUuids(
+                            (current) => {
+                              // Parent can select several existing
+                              // child-family heads. Child stays single-select.
+                              if (
+                                possibleFamilyRelationship ===
+                                "Parent"
+                              ) {
+                                return current.includes(
+                                  connection.familyUuid
+                                )
+                                  ? current.filter(
+                                      (id) =>
+                                        id !==
+                                        connection.familyUuid
+                                    )
+                                  : [
+                                      ...current,
+                                      connection.familyUuid,
+                                    ];
+                              }
+
+                              return [
+                                connection.familyUuid,
+                              ];
+                            }
+                          );
+                          setPossibleFamilyError("");
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "13px 14px",
+                          border: selected
+                            ? "1px solid #2563eb"
+                            : "1px solid #e2e8f0",
+                          borderRadius: "11px",
+                          background: selected
+                            ? "#eff6ff"
+                            : "#ffffff",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <strong
+                          style={{
+                            display: "block",
+                            color: "#172033",
+                          }}
+                        >
+                          {formatFormalName(
+                            connection.familyName ||
+                              "Unnamed Family"
+                          )}{" "}
+                          Family
+                        </strong>
+
+                        <span
+                          style={{
+                            display: "block",
+                            marginTop: "5px",
+                            color: "#64748b",
+                            fontSize: "12px",
+                          }}
+                        >
+                          Head:{" "}
+                          {formatFormalName(
+                            connection.familyHeadName
+                          )}
+                          {" • "}
+                          Household{" "}
+                          {connection.householdNumber}
+                          {connection.purok
+                            ? ` • ${connection.purok}`
+                            : ""}
+                        </span>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+
+              {selectedPossibleFamilyUuids.length > 0 && (
+                <div style={{ marginTop: "17px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "7px",
+                      color: "#475569",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    Direct relationship to the selected Family Head
+                    {selectedPossibleFamilyUuids.length > 1
+                      ? `s (${selectedPossibleFamilyUuids.length} selected)`
+                      : ""}
+                  </label>
+
+                  <select
+                    value={possibleFamilyRelationship}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPossibleFamilyRelationship(value);
+
+                      if (
+                        value === "Child" &&
+                        selectedPossibleFamilyUuids.length > 1
+                      ) {
+                        setSelectedPossibleFamilyUuids(
+                          (current) =>
+                            current.length
+                              ? [current[0]]
+                              : []
+                        );
+                      }
+
+                      setPossibleFamilyError("");
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "11px 12px",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "9px",
+                      background: "#ffffff",
+                    }}
+                  >
+                    <option value="">
+                      Select relationship
+                    </option>
+                    <option value="Child">
+                      Child of the Family Head
+                    </option>
+                    <option value="Parent">
+                      Parent of the Family Head
+                    </option>
+                  </select>
+                </div>
+              )}
+
+              {possibleFamilyError && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    padding: "10px 12px",
+                    borderRadius: "9px",
+                    background: "#fff1f2",
+                    color: "#b42318",
+                    fontSize: "12px",
+                  }}
+                >
+                  {possibleFamilyError}
+                </div>
+              )}
+
+              <div
+                style={{
+                  marginTop: "20px",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "9px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={closePossibleFamilyModal}
+                  style={{
+                    padding: "10px 14px",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "9px",
+                    background: "#ffffff",
+                    color: "#334155",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  No, Continue
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmPossibleFamilyConnection}
+                  disabled={
+                    selectedPossibleFamilyUuids.length === 0 ||
+                    !possibleFamilyRelationship
+                  }
+                  style={{
+                    padding: "10px 14px",
+                    border: "none",
+                    borderRadius: "9px",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    opacity:
+                      !selectedPossibleFamilyUuids ||
+                      !possibleFamilyRelationship
+                        ? 0.55
+                        : 1,
+                  }}
+                >
+                  Yes, Link Family
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {showSaveDraftExitConfirm && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 99999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+              background: "rgba(15, 23, 42, 0.55)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <div
+              style={{
+                width: "430px",
+                maxWidth: "100%",
+                padding: "28px",
+                borderRadius: "18px",
+                background: "#ffffff",
+                boxShadow:
+                  "0 25px 60px rgba(15, 23, 42, 0.25)",
+              }}
+            >
+              <h2
+                style={{
+                  margin: "0 0 10px",
+                  color: "#172033",
+                  fontSize: "21px",
+                }}
+              >
+                Save Census Draft?
+              </h2>
+
+              <p
+                style={{
+                  margin: "0 0 22px",
+                  color: "#64748b",
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                }}
+              >
+                Your current census progress is saved
+                locally. You can return to Census Drafts
+                now and resume this household later.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "10px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowSaveDraftExitConfirm(false)
+                  }
+                  style={{
+                    padding: "10px 16px",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "9px",
+                    background: "#ffffff",
+                    color: "#334155",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Continue Editing
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSaveDraftExitConfirm(false);
+                    onDraftsChanged?.();
+                    onSaveDraftAndExit?.();
+                  }}
+                  style={{
+                    padding: "10px 16px",
+                    border: "none",
+                    borderRadius: "9px",
+                    background: "#15803d",
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Save Draft & Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
     </div>
@@ -5339,3 +7106,5 @@ style={{
 }
 
 export default HouseholdPrototype;
+
+

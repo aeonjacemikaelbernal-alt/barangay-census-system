@@ -3545,3 +3545,1099 @@ textarea::placeholder {
   .review-footer-left { width: 100%; }
   .review-submit-button { width: 100%; margin-left: 0; }
 }
+
+
+/* ==========================================================
+   CENSUS TYPOGRAPHY NORMALIZATION — 2026-09-07
+   Step 1 is the master visual scale.
+   Keeps existing layout/logic; normalizes Steps 2–4 readability.
+========================================================== */
+
+/* Step 2 — Family Information */
+.family-step-mode .form-group label,
+.family-member-edit-panel .form-group label {
+  font-size: 12px;
+}
+
+.family-step-mode .form-group input,
+.family-step-mode .form-group select,
+.family-step-mode .form-group textarea,
+.family-member-edit-panel .form-group input,
+.family-member-edit-panel .form-group select,
+.family-member-edit-panel .form-group textarea {
+  font-size: 13px;
+}
+
+.family-basic-heading strong,
+.family-members-heading strong,
+.family-member-edit-panel .subsection-label {
+  font-size: 12px;
+}
+
+.family-basic-heading span,
+.family-members-heading span,
+.family-table-note {
+  font-size: 11px;
+}
+
+.family-number-badge,
+.family-member-count,
+.family-table-header,
+.family-table-number,
+.family-table-name strong,
+.family-table-relationship,
+.family-table-status,
+.family-table-own-family select,
+.family-edit-member,
+.family-add-member-btn,
+.family-footer-secondary,
+.family-footer-primary {
+  font-size: 11px;
+}
+
+.family-table-name small,
+.family-active-member-bar > div > span,
+.family-active-role {
+  font-size: 9px !important;
+}
+
+.family-active-member-bar > div > strong {
+  font-size: 12px;
+}
+
+/* Step 3 — Resident Information */
+.resident-step-kicker,
+.resident-step-heading p,
+.resident-step-selector label,
+.resident-step-selector span,
+.resident-step-mode .resident-header p,
+.resident-step-mode .role-badge,
+.resident-step-counter,
+.resident-footer-center span {
+  font-size: 11px;
+}
+
+.resident-step-heading h3 {
+  font-size: 18px;
+}
+
+.resident-step-selector select,
+.resident-step-mode .form-group label {
+  font-size: 12px;
+}
+
+.resident-step-mode .form-group input,
+.resident-step-mode .form-group select,
+.resident-step-mode .form-group textarea {
+  font-size: 13px;
+}
+
+.resident-step-mode .resident-header h4 {
+  font-size: 16px;
+}
+
+.resident-step-mode .subsection-label {
+  font-size: 12px;
+}
+
+.resident-footer-secondary,
+.resident-footer-primary,
+.open-own-family-button,
+.back-family-one-button {
+  font-size: 11px;
+}
+
+/* Step 4 — Review & Submit */
+.review-main-header p {
+  font-size: 12px;
+}
+
+.review-family-summary-text strong {
+  font-size: 13px;
+}
+
+.review-family-summary-text span,
+.review-family-summary-text small,
+.review-member-details strong {
+  font-size: 11px;
+}
+
+.review-family-member-count span,
+.review-member-index,
+.review-member-details small,
+.review-member-details span,
+.review-see-members-button,
+.review-secondary-button,
+.review-submit-button,
+.review-submit-note,
+.review-resident-id {
+  font-size: 10px;
+}
+
+.linked-head-review-note strong {
+  font-size: 12px;
+}
+
+.linked-head-review-note span,
+.review-help-card p {
+  font-size: 11px;
+}
+
+
+/* ==========================================================
+   FAMILY MEMBER ACTIONS — CLEANUP V1
+========================================================== */
+.family-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.family-remove-member {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #efcaca;
+  border-radius: 6px;
+  background: #fff;
+  color: #c43d3d;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.family-remove-member:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #e9aaaa;
+}
+
+.family-remove-member:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The table already identifies the selected member, so the old
+   duplicate active-member summary bar is no longer needed. */
+.family-active-member-bar {
+  display: none;
+}
+
+/* Keep the useful side cards visually grouped after removing
+   redundant Help / How-it-works / Progress cards. */
+.census-side-panel {
+  gap: 12px;
+}
+
+
+/* ==========================================================
+   PHASE 2 — FAMILY STEP COMPACT MODAL + ICON ACTIONS
+   Keeps the Family page compact while preserving existing data logic.
+========================================================== */
+
+.family-table-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  flex-wrap: nowrap !important;
+}
+
+.family-icon-action {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 7px !important;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.family-icon-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.family-edit-member.family-icon-action {
+  border: 1px solid #bcd2f4 !important;
+  background: #f4f8ff !important;
+  color: #1769e8 !important;
+}
+
+.family-edit-member.family-icon-action:hover {
+  background: #eaf2ff !important;
+  border-color: #8db5ef !important;
+}
+
+.family-remove-member.family-icon-action {
+  border: 1px solid #f0caca !important;
+  background: #fff8f8 !important;
+  color: #d54b4b !important;
+}
+
+.family-remove-member.family-icon-action:hover:not(:disabled) {
+  background: #fff0f0 !important;
+  border-color: #e9aaaa !important;
+}
+
+.family-remove-member.family-icon-action:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+.family-member-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 31, 54, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.census-page .family-member-edit-panel.family-member-modal {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  margin: 0 !important;
+  padding: 22px !important;
+  border: 1px solid #d9e3ef !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: 0 22px 60px rgba(20, 42, 73, 0.22) !important;
+}
+
+.family-member-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e5ebf2;
+}
+
+.family-member-modal-header .subsection-label {
+  margin: 4px 0 0 !important;
+}
+
+.family-member-modal-kicker {
+  display: block;
+  color: #7b8ba2;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.family-modal-close-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #dce5ef;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #536985;
+  cursor: pointer;
+}
+
+.family-modal-close-icon:hover {
+  background: #f5f8fc;
+  color: #18375f;
+}
+
+.census-page .family-member-modal .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 18px;
+  row-gap: 14px;
+}
+
+.family-member-modal .family-member-editor-actions {
+  margin-top: 18px !important;
+  padding-top: 16px !important;
+  border-top: 1px solid #e5ebf2;
+}
+
+.family-member-modal .family-editor-close-button {
+  min-width: 90px;
+}
+
+@media (max-width: 700px) {
+  .family-member-modal-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .census-page .family-member-edit-panel.family-member-modal {
+    width: 100%;
+    max-height: 88vh;
+    padding: 18px !important;
+  }
+
+  .census-page .family-member-modal .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ==========================================================
+   PHASE 2 — COMPACT SIDE PANEL + MEMBERS DETAILS MODAL
+========================================================== */
+
+.context-members-compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-members-compact-row > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.context-members-compact-row strong {
+  color: #10264a;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.context-members-compact-row span {
+  color: #7b899d;
+  font-size: 9px;
+}
+
+.context-view-members-button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #bcd2f4;
+  border-radius: 6px;
+  background: #f4f8ff;
+  color: #1769e8;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.context-view-members-button:hover:not(:disabled) {
+  background: #eaf2ff;
+  border-color: #8db5ef;
+}
+
+.context-view-members-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.context-members-modal {
+  width: min(620px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid #d9e3ef;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(20, 42, 73, 0.22);
+}
+
+.context-members-modal .family-member-modal-header h3 {
+  margin: 3px 0 0;
+  color: #10264a;
+  font-size: 17px;
+}
+
+.context-members-modal-list {
+  overflow-y: auto;
+  border: 1px solid #e4eaf2;
+  border-radius: 8px;
+}
+
+.context-members-modal-row {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.context-members-modal-row:last-child {
+  border-bottom: 0;
+}
+
+.context-members-modal-name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.context-members-modal-name strong {
+  overflow: hidden;
+  color: #243b5e;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-members-modal-name small {
+  color: #7b899d;
+  font-size: 10px;
+}
+
+.context-members-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e5ebf2;
+}
+
+/* Draft-stage rule: every temporary member may be removed,
+   including a Family Head. */
+.family-remove-member.family-icon-action {
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
+
+@media (max-width: 700px) {
+  .context-members-modal {
+    width: 100%;
+    max-height: 88vh;
+    padding: 18px;
+  }
+
+  .context-members-modal-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .context-members-modal-row .member-role {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+
+/* ==========================================================
+   OWN FAMILY SETUP — COMPACT SIDE CARD
+========================================================== */
+
+.context-own-family-compact {
+  border-color: #d8e8fb;
+  background: #f9fbff;
+}
+
+.context-own-family-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-own-family-row > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.context-own-family-row strong {
+  color: #1769e8;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.context-own-family-row span {
+  color: #6f8199;
+  font-size: 9px;
+}
+
+.context-manage-own-family-button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #bcd2f4;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1769e8;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.context-manage-own-family-button:hover {
+  background: #edf4ff;
+  border-color: #8db5ef;
+}
+
+
+/* ==========================================================
+   OWN FAMILY SETUP — MODAL
+========================================================== */
+
+.context-own-family-modal {
+  width: min(700px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid #d9e3ef;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(20, 42, 73, 0.22);
+}
+
+.context-own-family-modal .family-member-modal-header h3 {
+  margin: 3px 0 0;
+  color: #10264a;
+  font-size: 17px;
+}
+
+.context-own-family-modal .family-member-modal-header p {
+  margin: 5px 0 0;
+  color: #71829a;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.context-own-family-modal-list {
+  overflow-y: auto;
+  border: 1px solid #e4eaf2;
+  border-radius: 8px;
+}
+
+.context-own-family-modal-row {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.context-own-family-modal-row:last-child {
+  border-bottom: 0;
+}
+
+.context-own-family-person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.context-own-family-person > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.context-own-family-person strong {
+  overflow: hidden;
+  color: #243b5e;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-own-family-person small {
+  color: #7b899d;
+  font-size: 10px;
+}
+
+.context-own-family-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.own-family-status {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.own-family-status.pending {
+  border: 1px solid #f0d7a8;
+  background: #fff9ed;
+  color: #9a6712;
+}
+
+.own-family-status.ready {
+  border: 1px solid #bfe6d2;
+  background: #f0faf5;
+  color: #21865c;
+}
+
+.context-own-family-action {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #1769e8;
+  border-radius: 6px;
+  background: #1769e8;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.context-own-family-action:hover {
+  background: #105dd3;
+}
+
+.context-own-family-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e5ebf2;
+}
+
+@media (max-width: 700px) {
+  .context-own-family-modal {
+    width: 100%;
+    max-height: 88vh;
+    padding: 18px;
+  }
+
+  .context-own-family-modal-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .context-own-family-status {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+}
+
+
+/* ==========================================================
+   FAMILY NAVIGATOR — KEEP ALL CREATED FAMILIES ACCESSIBLE
+========================================================== */
+
+.family-navigator-list {
+  overflow: hidden;
+  border: 1px solid #e4eaf2;
+  border-radius: 7px;
+}
+
+.family-navigator-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px;
+  border-bottom: 1px solid #edf1f6;
+  background: #ffffff;
+}
+
+.family-navigator-row:last-child {
+  border-bottom: 0;
+}
+
+.family-navigator-row.current {
+  background: #f5f9ff;
+}
+
+.family-navigator-row > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.family-navigator-row strong {
+  color: #243b5e;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.family-navigator-row span {
+  overflow: hidden;
+  color: #7b899d;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-navigator-current {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid #bfe6d2;
+  border-radius: 999px;
+  background: #f0faf5;
+  color: #21865c !important;
+  font-size: 8px !important;
+  font-weight: 700;
+}
+
+.family-navigator-open {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #bcd2f4;
+  border-radius: 6px;
+  background: #f4f8ff;
+  color: #1769e8;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.family-navigator-open:hover {
+  background: #eaf2ff;
+  border-color: #8db5ef;
+}
+
+
+/* ==========================================================
+   REVIEW — GROUP MEMBER DETAILS BY FAMILY
+========================================================== */
+
+.context-members-family-group + .context-members-family-group {
+  border-top: 8px solid #f5f8fc;
+}
+
+.context-members-family-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-bottom: 1px solid #e4eaf2;
+  background: #f6f9fd;
+}
+
+.context-members-family-heading strong {
+  color: #10264a;
+  font-size: 11px;
+}
+
+.context-members-family-heading span {
+  color: #71829a;
+  font-size: 9px;
+}
+
+@media (max-width: 700px) {
+  .context-members-family-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+}
+
+/* Resident information sub-stepper: UI-only navigation inside Step 3 */
+/* Resident information sub-stepper
+   Secondary navigation inside the main Resident step.
+   Intentionally smaller than the main census stepper. */
+.resident-section-stepper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: min(720px, 100%);
+  margin: -2px auto 16px;
+  padding: 0 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.resident-section-step-item {
+  display: flex;
+  align-items: flex-start;
+  flex: 1 0 92px;
+  min-width: 0;
+}
+
+.resident-section-step-item:last-child {
+  flex: 0 0 auto;
+}
+
+.resident-section-step {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #7d899b;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.resident-section-step > span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e8edf4;
+  border: 1px solid #dce4ee;
+  color: #718096;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  transition: 0.18s ease;
+}
+
+.resident-section-step small {
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 650;
+  color: inherit;
+}
+
+.resident-section-step:hover {
+  color: #41658e;
+}
+
+.resident-section-step.active {
+  color: #135bd5;
+}
+
+.resident-section-step.active > span {
+  background: #1769e8;
+  border-color: #1769e8;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(23, 105, 232, 0.18);
+}
+
+.resident-section-step.completed {
+  color: #20845f;
+}
+
+.resident-section-step.completed > span {
+  background: #20a36a;
+  border-color: #20a36a;
+  color: #fff;
+}
+
+.resident-section-line {
+  height: 1px;
+  flex: 1;
+  min-width: 18px;
+  margin: 10px 7px 0;
+  background: #d7e0ea;
+  transition: 0.18s ease;
+}
+
+.resident-section-line.completed {
+  background: #20a36a;
+}
+
+/* Census entry workspace: phone and compact tablet layout. */
+@media (max-width: 700px) {
+  .census-main-shell {
+    min-width: 0;
+    padding-bottom: 24px;
+  }
+
+  .census-page-topbar {
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px 12px 10px;
+  }
+
+  .census-page-topbar h1 {
+    font-size: clamp(20px, 6vw, 25px);
+    overflow-wrap: anywhere;
+  }
+
+  .census-topbar-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 9px;
+  }
+
+  .census-admin-info {
+    min-width: 0;
+    flex: 1 1 150px;
+  }
+
+  .census-admin-info strong {
+    overflow-wrap: anywhere;
+  }
+
+  .census-back-dashboard {
+    min-height: 42px;
+    height: auto;
+    padding: 8px 10px;
+  }
+
+  .census-main-shell .census-container {
+    width: calc(100% - 20px) !important;
+    padding-top: 6px;
+  }
+
+  .census-stepper {
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 18px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .census-step-line {
+    min-width: 18px;
+    margin-right: 7px;
+    margin-left: 7px;
+  }
+
+  .census-page .form-card,
+  .census-page .resident-card,
+  .census-page .family-basic-section {
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .census-page .form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px;
+  }
+
+  .census-page .form-group.full-width {
+    grid-column: auto;
+  }
+
+  .census-page :is(input, select, textarea, button) {
+    max-width: 100%;
+  }
+
+  .census-page .form-group :is(input, select, textarea) {
+    min-height: 44px;
+  }
+
+  .census-workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0;
+  }
+
+  .census-side-panel {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .resident-step-header,
+  .family-step-header,
+  .family-basic-heading,
+  .review-section-heading,
+  .review-section-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .resident-section-stepper {
+    justify-content: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .family-members-table,
+  .review-members-table {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .family-step-footer,
+  .resident-step-footer,
+  .review-submit-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .family-footer-right,
+  .resident-footer-actions,
+  .review-submit-actions {
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .family-footer-right button,
+  .resident-footer-actions button,
+  .review-submit-actions button {
+    flex: 1 1 140px;
+    min-height: 42px;
+  }
+}
+
+@media (max-width: 420px) {
+  .census-main-shell .census-container {
+    width: calc(100% - 14px) !important;
+  }
+
+  .census-page-topbar {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .census-page .form-card,
+  .census-page .resident-card,
+  .census-page .family-basic-section {
+    padding: 11px;
+  }
+
+  .census-page .family-member-modal .form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .resident-section-stepper {
+    width: 100%;
+    justify-content: flex-start;
+    margin-bottom: 14px;
+    padding: 0 4px 4px;
+  }
+
+  .resident-section-step-item {
+    flex: 0 0 82px;
+  }
+
+  .resident-section-step > span {
+    width: 21px;
+    height: 21px;
+    font-size: 9px;
+  }
+
+  .resident-section-step small {
+    font-size: 9px;
+  }
+
+  .resident-section-line {
+    min-width: 14px;
+    margin-left: 5px;
+    margin-right: 5px;
+  }
+}

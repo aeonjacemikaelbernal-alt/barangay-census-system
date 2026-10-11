@@ -1,0 +1,157 @@
+@page{size:A4 portrait;margin:12mm 10mm}
+
+/* HOUSEHOLD PRINT PREVIEW ONLY */
+.household-print-document,
+.household-print-document *{box-sizing:border-box}
+
+.household-print-document{
+  margin:0;
+  padding:0;
+  background:#fff;
+  color:#111827;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:11px;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+
+.household-print-document .print-actions{
+  width:min(190mm,calc(100% - 24px));
+  margin:14px auto;
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+}
+
+.household-print-document .print-actions button{
+  border:1px solid #cbd5e1;
+  background:#fff;
+  padding:8px 14px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:700;
+}
+
+.household-print-document .print-actions .primary{
+  background:#173f73;
+  color:#fff;
+  border-color:#173f73;
+}
+
+.household-print-document .sheet{
+  width:190mm;
+  max-width:calc(100% - 24px);
+  margin:0 auto;
+}
+
+.household-print-document .header{
+  position:relative;
+  min-height:78px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 95px;
+  line-height:1.28;
+}
+
+.household-print-document .header-logo{
+  position:absolute;
+  left:10px;
+  top:50%;
+  transform:translateY(-50%);
+  width:72px;
+  height:72px;
+  object-fit:cover;
+  border-radius:50%;
+  background:#fff;
+}
+
+.household-print-document .header-text{text-align:center}
+.household-print-document .header .barangay{
+  margin-top:3px;
+  font-size:15px;
+  font-weight:800;
+}
+.household-print-document .rule{
+  border-top:2px solid #1f2937;
+  margin:7px 0 12px;
+}
+.household-print-document h1{
+  text-align:center;
+  font-size:16px;
+  letter-spacing:.04em;
+  margin:0 0 12px;
+}
+.household-print-document .report-info{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px 18px;
+  margin-bottom:12px;
+  font-size:10px;
+}
+.household-print-document .report-info div:last-child{grid-column:1/-1}
+
+.household-print-document table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  border:1px solid #374151;
+}
+.household-print-document th,
+.household-print-document td{
+  border:1px solid #4b5563;
+  padding:6px;
+  vertical-align:middle;
+}
+.household-print-document th{
+  background:#eef2f7;
+  text-transform:uppercase;
+  text-align:center;
+  font-size:9px;
+}
+.household-print-document th:nth-child(1),
+.household-print-document td:nth-child(1){
+  width:9mm;
+  text-align:center;
+}
+.household-print-document th:nth-child(2),
+.household-print-document td:nth-child(2){width:70mm}
+.household-print-document th:nth-child(3),
+.household-print-document td:nth-child(3){width:28mm}
+.household-print-document td.name{font-weight:700}
+.household-print-document .empty{text-align:center;padding:18px}
+.household-print-document .footer{
+  margin-top:12px;
+  display:flex;
+  justify-content:space-between;
+  gap:20px;
+}
+.household-print-document .total{font-weight:700}
+.household-print-document .prepared{
+  min-width:220px;
+  margin-top:32px;
+  text-align:center;
+}
+.household-print-document .prepared-line{
+  border-top:1px solid #111827;
+  padding-top:4px;
+  font-weight:700;
+}
+.household-print-document .prepared-role{
+  margin-top:2px;
+  color:#4b5563;
+  font-size:9px;
+}
+
+@media print{
+  .household-print-document .print-actions{display:none!important}
+  .household-print-document .sheet{width:100%;max-width:none;margin:0}
+  .household-print-document thead{display:table-header-group}
+  .household-print-document tr,
+  .household-print-document td,
+  .household-print-document th{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+  .household-print-document .footer{break-inside:avoid}
+}

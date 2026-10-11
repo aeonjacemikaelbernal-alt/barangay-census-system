@@ -12,12 +12,17 @@ import {
   Mail,
   MapPin,
   ShieldCheck,
-  UserPlus,
   UserRound,
   LogIn,
 } from "lucide-react";
 
 import { supabase } from "../../services/supabaseClient";
+
+import {
+  getAuthorizedUser,
+  type AuthorizedUser,
+} from "../../services/authService";
+
 import "./Login.css";
 
 import barangayLogo from "../../assets/barangay-pambuhan-logo.png";
@@ -31,12 +36,8 @@ import aerial5 from "../../assets/login/aerial-5.jfif";
 import aerial6 from "../../assets/login/aerial-6.jfif";
 import aerial7 from "../../assets/login/aerial-7.jfif";
 import aerial8 from "../../assets/login/aerial-8.jfif";
-import aerial9 from "../../assets/login/aerial-8.jfif";
+import aerial9 from "../../assets/login/aerial-9.jfif";
 import aerial10 from "../../assets/login/aerial-10.jfif";
-
-type LoginProps = {
-  onLoginSuccess: () => void;
-};
 
 const carouselImages = [
   barangayHall,
@@ -51,12 +52,15 @@ const carouselImages = [
   aerial9,
   aerial10,
 ];
+type LoginProps = {
+  onLoginSuccess: (
+    user: AuthorizedUser
+  ) => void;
+};
 
 function Login({
   onLoginSuccess,
 }: LoginProps) {
-  const [isRegister, setIsRegister] =
-    useState(false);
 
   const [loginEmail, setLoginEmail] =
     useState("");
@@ -64,36 +68,16 @@ function Login({
   const [loginPassword, setLoginPassword] =
     useState("");
 
-  const [registerEmail, setRegisterEmail] =
-    useState("");
 
-  const [
-    registerPassword,
-    setRegisterPassword,
-  ] = useState("");
 
-  const [
-    confirmPassword,
-    setConfirmPassword,
-  ] = useState("");
 
-  const [fullName, setFullName] =
-    useState("");
 
   const [
     showLoginPassword,
     setShowLoginPassword,
   ] = useState(false);
 
-  const [
-    showRegisterPassword,
-    setShowRegisterPassword,
-  ] = useState(false);
 
-  const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] = useState(false);
 
   const [currentSlide, setCurrentSlide] =
     useState(0);
@@ -106,10 +90,6 @@ function Login({
     setErrorMessage,
   ] = useState("");
 
-  const [
-    successMessage,
-    setSuccessMessage,
-  ] = useState("");
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -140,87 +120,81 @@ function Login({
     );
   };
 
-  const handleLogin = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
+ const handleLogin = async (
+  event: React.FormEvent<HTMLFormElement>
+) => {
+  event.preventDefault();
 
-    setErrorMessage("");
-    setSuccessMessage("");
-    setLoading(true);
+  setErrorMessage("");
+  setLoading(true);
 
-    const { error } =
-      await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword,
-      });
-
-    setLoading(false);
+  try {
+    const {
+      data,
+      error,
+    } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
 
     if (error) {
       setErrorMessage(error.message);
       return;
     }
 
-    onLoginSuccess();
-  };
-
-  const handleRegister = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    if (
-      registerPassword !==
-      confirmPassword
-    ) {
+    if (!data.user) {
       setErrorMessage(
-        "Passwords do not match."
+        "Unable to verify your account."
       );
       return;
     }
 
-    setLoading(true);
+    const authorizedUser =
+      await getAuthorizedUser(data.user.id);
 
-    const { error } =
-      await supabase.auth.signUp({
-        email: registerEmail,
-        password: registerPassword,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
-      });
+    if (!authorizedUser) {
+      await supabase.auth.signOut();
 
-    setLoading(false);
+      setErrorMessage(
+        "Your account is not authorized to access this system."
+      );
 
-    if (error) {
-      setErrorMessage(error.message);
       return;
     }
 
-    setSuccessMessage(
-      "Registration successful. You can now log in."
+    if (!authorizedUser.is_active) {
+      await supabase.auth.signOut();
+
+      setErrorMessage(
+        "Your account has been deactivated. Please contact the system administrator."
+      );
+
+      return;
+    }
+
+    onLoginSuccess(authorizedUser); 
+  } catch (error) {
+    console.error(
+      "LOGIN AUTHORIZATION CHECK FAILED:",
+      error
     );
 
-    setRegisterPassword("");
-    setConfirmPassword("");
-    setIsRegister(false);
-  };
+    await supabase.auth.signOut();
+
+    setErrorMessage(
+      "Unable to verify your account access. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="login-page">
 
       <div
-        className={`login-container ${
-          isRegister
-            ? "register-mode"
-            : ""
-        }`}
+        className="login-container"
       >
 
         {/* ================================================
@@ -310,32 +284,19 @@ function Login({
 
             <div className="auth-options">
 
-              <label className="remember-option">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                />
-                Remember me
-              </label>
+              <span className="remember-option">
+                Session ends when you log out or close this tab.
+              </span>
 
-              <button
-                type="button"
-                className="forgot-password"
-              >
-                Forgot password?
-              </button>
+              <span className="forgot-password">
+                Need a password reset? Contact the system administrator.
+              </span>
 
             </div>
 
             {errorMessage && (
               <div className="auth-error">
                 {errorMessage}
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="auth-success">
-                {successMessage}
               </div>
             )}
 
@@ -352,25 +313,7 @@ function Login({
             </button>
 
           </form>
-
-          <div className="auth-divider">
-            <span>or</span>
-          </div>
-
-          <div className="switch-row">
-            Don't have an account?
-
-            <button
-              type="button"
-              onClick={() =>
-                setIsRegister(true)
-              }
-            >
-              Register here
-            </button>
-          </div>
-
-          <div className="authorized-card">
+<div className="authorized-card">
             <ShieldCheck size={27} />
 
             <div>
@@ -387,194 +330,7 @@ function Login({
           </div>
 
         </div>
-
-
-        {/* ================================================
-            REGISTER
-        ================================================= */}
-
-        <div className="auth-form register-form">
-
-          <div className="auth-heading">
-
-            <div className="auth-heading-icon">
-              <UserPlus size={26} />
-            </div>
-
-            <div>
-              <h1>Create an Account</h1>
-
-              <p>
-                Register to access the
-                Barangay Census System
-              </p>
-            </div>
-
-          </div>
-
-          <form onSubmit={handleRegister}>
-
-            <label>Full Name</label>
-
-            <div className="auth-input">
-              <UserRound size={19} />
-
-              <input
-                type="text"
-                autoComplete="name"
-                placeholder="Enter your full name"
-                value={fullName}
-                onChange={(event) =>
-                  setFullName(
-                    event.target.value
-                  )
-                }
-                required
-              />
-            </div>
-
-            <label>Email Address</label>
-
-            <div className="auth-input">
-              <Mail size={19} />
-
-              <input
-                type="email"
-                autoComplete="email"
-                placeholder="Enter your email address"
-                value={registerEmail}
-                onChange={(event) =>
-                  setRegisterEmail(
-                    event.target.value
-                  )
-                }
-                required
-              />
-            </div>
-
-            <label>Password</label>
-
-            <div className="auth-input">
-              <LockKeyhole size={19} />
-
-              <input
-                type={
-                  showRegisterPassword
-                    ? "text"
-                    : "password"
-                }
-                autoComplete="new-password"
-                placeholder="Create a password"
-                value={registerPassword}
-                onChange={(event) =>
-                  setRegisterPassword(
-                    event.target.value
-                  )
-                }
-                required
-              />
-
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() =>
-                  setShowRegisterPassword(
-                    (current) => !current
-                  )
-                }
-              >
-                {showRegisterPassword ? (
-                  <EyeOff size={18} />
-                ) : (
-                  <Eye size={18} />
-                )}
-              </button>
-            </div>
-
-            <label>
-              Confirm Password
-            </label>
-
-            <div className="auth-input">
-              <LockKeyhole size={19} />
-
-              <input
-                type={
-                  showConfirmPassword
-                    ? "text"
-                    : "password"
-                }
-                autoComplete="new-password"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(event) =>
-                  setConfirmPassword(
-                    event.target.value
-                  )
-                }
-                required
-              />
-
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() =>
-                  setShowConfirmPassword(
-                    (current) => !current
-                  )
-                }
-              >
-                {showConfirmPassword ? (
-                  <EyeOff size={18} />
-                ) : (
-                  <Eye size={18} />
-                )}
-              </button>
-            </div>
-
-            {errorMessage && (
-              <div className="auth-error">
-                {errorMessage}
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="auth-success">
-                {successMessage}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="auth-button"
-              disabled={loading}
-            >
-              <UserPlus size={19} />
-
-              {loading
-                ? "Registering..."
-                : "Register"}
-            </button>
-
-          </form>
-
-          <div className="switch-row">
-            Already have an account?
-
-            <button
-              type="button"
-              onClick={() =>
-                setIsRegister(false)
-              }
-            >
-              Login here
-            </button>
-          </div>
-
-        </div>
-
-
-        {/* ================================================
+{/* ================================================
             PHOTO / ANIMATED PANEL
         ================================================= */}
 

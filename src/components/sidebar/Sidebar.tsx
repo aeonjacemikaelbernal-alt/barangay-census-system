@@ -1,3 +1,5 @@
+import { supabase } from "../../services/supabaseClient";
+
 import {
   useEffect,
   useState,
@@ -22,6 +24,11 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  LogOut,
+  FileText,
+  History,
+  Trash2,
+  ClipboardCheck,
 } from "lucide-react";
 
 export type Page =
@@ -36,7 +43,11 @@ export type Page =
   | "voters"
   | "fourPs"
   | "settings"
-  | "census";
+  | "documents"
+  | "auditTrail"
+  | "recycleBin"
+  | "census"
+  | "encoderUpdates";
 
 type SidebarProps = {
   page: Page;
@@ -44,6 +55,7 @@ type SidebarProps = {
   onNewCensus: () => void;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  role: string;
 };
 
 function Sidebar({
@@ -52,11 +64,16 @@ function Sidebar({
   onNewCensus,
   collapsed,
   onCollapsedChange,
+  role,
 }: SidebarProps) {
+
+  const isSecretary = role === "secretary";
 
 const [censusOpen, setCensusOpen] = useState(false);
 const [dataOpen, setDataOpen] = useState(false);
 const [socialOpen, setSocialOpen] = useState(false);
+const [showLogoutConfirm, setShowLogoutConfirm] =
+  useState(false);
 
 const censusGroupActive =
   page === "residents" ||
@@ -79,14 +96,20 @@ useEffect(() => {
   }
 
   if (censusGroupActive) {
+    // Keep the active navigation group expanded when the route changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCensusOpen(true);
   }
 
   if (dataGroupActive) {
+    // Keep the active navigation group expanded when the route changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDataOpen(true);
   }
 
   if (socialGroupActive) {
+    // Keep the active navigation group expanded when the route changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocialOpen(true);
   }
 }, [
@@ -133,6 +156,23 @@ const handleGroupClick = (
   if (group === "social") {
     setSocialOpen((current) => !current);
   }
+};
+
+const handleSidebarLogout = async () => {
+  const { error } =
+    await supabase.auth.signOut({
+      scope: "local",
+    });
+
+  if (error) {
+    console.error(
+      "LOGOUT FAILED:",
+      error
+    );
+    return;
+  }
+
+  window.location.reload();
 };
 
   return (
@@ -201,7 +241,26 @@ const handleGroupClick = (
   </span>
         </button>
 
-        {/* =================================================
+        {role === "encoder" && (
+          <button
+            type="button"
+            className={`nav-item ${
+              page === "encoderUpdates" ? "active" : ""
+            }`}
+            onClick={() => handleNavigate("encoderUpdates")}
+            title="Household Updates"
+            aria-label="Household Updates"
+          >
+            <span className="nav-icon sidebar-icon-residents">
+              <ClipboardCheck size={18} strokeWidth={1.8} />
+            </span>
+            <span className="nav-text">Household Updates</span>
+          </button>
+        )}
+
+        {isSecretary && (
+          <>
+            {/* =================================================
     CENSUS RECORDS
 ================================================= */}
 
@@ -562,26 +621,87 @@ const handleGroupClick = (
     </div>
   )}
 
-</div>  
+</div>
 
-        <button
-  type="button"
-  className={`nav-item ${
-    page === "settings" ? "active" : ""
-  }`}
-  onClick={() => handleNavigate("settings")}
->
-  <span className="nav-icon sidebar-icon-settings">
-    <Settings
-      size={18}
-      strokeWidth={1.8}
-    />
-  </span>
+          </>
+        )}
 
-  <span className="nav-text">
-    Settings
-  </span>
-</button>
+{isSecretary && (
+  <button
+    type="button"
+    className={`nav-item ${
+      page === "documents" ? "active" : ""
+    }`}
+    onClick={() =>
+      handleNavigate("documents")
+    }
+  >
+    <span className="nav-icon sidebar-icon-documents">
+      <FileText
+        size={18}
+        strokeWidth={1.8}
+      />
+    </span>
+
+    <span className="nav-text">
+      Documents & Certificates
+    </span>
+  </button>
+)}
+
+
+{(isSecretary || role === "encoder") && (
+  <button
+    type="button"
+    className={`nav-item ${
+      page === "auditTrail" ? "active" : ""
+    }`}
+    onClick={() => handleNavigate("auditTrail")}
+  >
+    <span className="nav-icon sidebar-icon-audit">
+      <History size={18} strokeWidth={1.8} />
+    </span>
+    <span className="nav-text">Audit Trail</span>
+  </button>
+)}
+
+{isSecretary && (
+  <button
+    type="button"
+    className={`nav-item ${
+      page === "recycleBin" ? "active" : ""
+    }`}
+    onClick={() => handleNavigate("recycleBin")}
+  >
+    <span className="nav-icon sidebar-icon-recycle">
+      <Trash2 size={18} strokeWidth={1.8} />
+    </span>
+    <span className="nav-text">Recycle Bin</span>
+  </button>
+)}
+
+{isSecretary && (
+  <button
+    type="button"
+    className={`nav-item ${
+      page === "settings" ? "active" : ""
+    }`}
+    onClick={() =>
+      handleNavigate("settings")
+    }
+  >
+    <span className="nav-icon sidebar-icon-settings">
+      <Settings
+        size={18}
+        strokeWidth={1.8}
+      />
+    </span>
+
+    <span className="nav-text">
+      Settings
+    </span>
+  </button>
+)}
 
       </nav>
 
@@ -589,24 +709,90 @@ const handleGroupClick = (
 
       <div className="sidebar-bottom">
 
+  <button
+    type="button"
+    className="new-census-sidebar"
+    onClick={onNewCensus}
+  >
+    <span className="nav-icon">
+      <Plus size={18} strokeWidth={2} />
+    </span>
+
+    <span className="nav-text">
+      New Census
+    </span>
+  </button>
+
+{role === "encoder" && (
+  <button
+    type="button"
+    className="nav-item sidebar-logout-button"
+    onClick={() =>
+      setShowLogoutConfirm(true)
+    }
+  >
+    <span className="nav-icon">
+      <LogOut
+        size={18}
+        strokeWidth={1.8}
+      />
+    </span>
+
+    <span className="nav-text">
+      Logout
+    </span>
+  </button>
+)}
+
+</div>
+{showLogoutConfirm && (
+  <div className="logout-modal-overlay">
+    <div className="logout-modal-card">
+
+      <div className="logout-modal-icon">
+        <LogOut size={26} strokeWidth={2} />
+      </div>
+
+      <h3>Confirm Logout</h3>
+
+      <p>
+        Are you sure you want to log out
+        from your account?
+      </p>
+
+      <div className="logout-modal-actions">
+
         <button
           type="button"
-          className="new-census-sidebar"
-          onClick={onNewCensus}
+          className="logout-cancel-button"
+          onClick={() =>
+            setShowLogoutConfirm(false)
+          }
         >
-          <span className="nav-icon">
-  <Plus size={18} strokeWidth={2} />
-</span>
+          Cancel
+        </button>
 
-<span className="nav-text">
-  New Census
-</span>
+        <button
+          type="button"
+          className="logout-confirm-button"
+          onClick={async () => {
+            setShowLogoutConfirm(false);
+            await handleSidebarLogout();
+          }}
+        >
+          <LogOut size={16} strokeWidth={2} />
+          Logout
         </button>
 
       </div>
+
+    </div>
+  </div>
+)}
 
     </aside>
   );
 }
 
 export default Sidebar;
+

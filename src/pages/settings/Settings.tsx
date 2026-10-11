@@ -10,19 +10,25 @@ import {
   Save,
   MapPin,
   LockKeyhole,
-  SlidersHorizontal,
   CheckCircle2,
   AlertCircle,
   Eye,
   EyeOff,
+  Circle,
   Moon,
   Sun,
-  Type,
-  Languages,
   Monitor,
+  Settings2,
 } from "lucide-react";
 
+import "./settings.css";
+
 import { supabase } from "../../services/supabaseClient";
+import {
+  applyAppTheme,
+  readSavedTheme,
+  type AppTheme,
+} from "../../utils/theme";
 
 type SettingsProps = {
   email?: string;
@@ -33,27 +39,32 @@ type SettingsProps = {
 
 type BarangaySettings = {
   barangayName: string;
+  barangayCode: string;
   municipality: string;
+  municipalityCode: string;
   province: string;
+  provinceCode: string;
+  regionName: string;
+  regionCode: string;
   captainName: string;
   contactNumber: string;
   address: string;
 };
 
 type SystemPreferences = {
-  theme: "light" | "dark";
-  brightness: number;
-  fontFamily: string;
-  fontSize: "small" | "medium" | "large";
-  language: "english" | "tagalog";
+  theme: AppTheme;
   confirmLogout: boolean;
-  autoRefresh: boolean;
 };
 
 const defaultSettings: BarangaySettings = {
   barangayName: "",
+  barangayCode: "",
   municipality: "",
+  municipalityCode: "",
   province: "",
+  provinceCode: "",
+  regionName: "",
+  regionCode: "",
   captainName: "",
   contactNumber: "",
   address: "",
@@ -61,13 +72,117 @@ const defaultSettings: BarangaySettings = {
 
 const defaultPreferences: SystemPreferences = {
   theme: "light",
-  brightness: 100,
-  fontFamily: "Inter",
-  fontSize: "medium",
-  language: "english",
   confirmLogout: true,
-  autoRefresh: false,
 };
+
+const PASSWORD_MIN_LENGTH = 12;
+const PASSWORD_MAX_BYTES = 72;
+
+function getPasswordRequirements(password: string) {
+  const characterCount = Array.from(password).length;
+  const byteCount = new TextEncoder().encode(password).length;
+
+  return [
+    {
+      label: `At least ${PASSWORD_MIN_LENGTH} characters`,
+      met: characterCount >= PASSWORD_MIN_LENGTH,
+    },
+    {
+      label: "One uppercase letter",
+      met: /\p{Lu}/u.test(password),
+    },
+    {
+      label: "One lowercase letter",
+      met: /\p{Ll}/u.test(password),
+    },
+    {
+      label: "One number",
+      met: /\p{N}/u.test(password),
+    },
+    {
+      label: "One symbol",
+      met: /[^\p{L}\p{N}\s]/u.test(password),
+    },
+    {
+      label: `Within ${PASSWORD_MAX_BYTES}-byte limit`,
+      met: byteCount <= PASSWORD_MAX_BYTES,
+    },
+  ];
+}
+
+const BARANGAY_PROFILE_CACHE_KEY =
+  "barangay-census:barangay-profile:v1";
+
+function cacheBarangayProfile(
+  settings: BarangaySettings
+): void {
+  localStorage.setItem(
+    BARANGAY_PROFILE_CACHE_KEY,
+    JSON.stringify({
+      regionName: settings.regionName,
+      regionCode: settings.regionCode,
+      province: settings.province,
+      provinceCode: settings.provinceCode,
+      municipality: settings.municipality,
+      municipalityCode: settings.municipalityCode,
+      barangayName: settings.barangayName,
+      barangayCode: settings.barangayCode,
+    })
+  );
+}
+
+type PsgcOption = {
+  code: string;
+  name: string;
+};
+
+const PSGC_CACHE_PREFIX =
+  "barangay-census:settings-psgc:v1:";
+
+async function loadPsgcOptions(
+  url: string,
+  cacheKey: string
+): Promise<PsgcOption[]> {
+  const storageKey =
+    `${PSGC_CACHE_PREFIX}${cacheKey}`;
+
+  let cached: PsgcOption[] = [];
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    cached = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // Keep the empty fallback when the cached value cannot be parsed.
+  }
+
+  if (!navigator.onLine) return cached;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `PSGC request failed: ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+    const options = Array.isArray(data) ? data : cached;
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify(options)
+    );
+
+    return options;
+  } catch (error) {
+    console.error(
+      "FAILED TO LOAD PSGC OPTIONS:",
+      error
+    );
+    return cached;
+  }
+}
 
 function Settings({
   email,
@@ -75,6 +190,15 @@ function Settings({
   onRefreshData,
   onLogout,
 }: SettingsProps) {
+
+    type SettingsTab =
+    | "barangay"
+    | "account"
+    | "system";
+
+  const [activeTab, setActiveTab] =
+    useState<SettingsTab>("barangay");
+
   /* =========================================================
      BARANGAY SETTINGS
   ========================================================= */
@@ -94,24 +218,48 @@ function Settings({
   const [saveError, setSaveError] =
     useState("");
 
+  const [regions, setRegions] =
+    useState<PsgcOption[]>([]);
+  const [provinces, setProvinces] =
+    useState<PsgcOption[]>([]);
+  const [provincesRegionCode, setProvincesRegionCode] =
+    useState("");
+  const [municipalities, setMunicipalities] =
+    useState<PsgcOption[]>([]);
+  const [municipalitiesProvinceCode, setMunicipalitiesProvinceCode] =
+    useState("");
+  const [barangays, setBarangays] =
+    useState<PsgcOption[]>([]);
+  const [barangaysMunicipalityCode, setBarangaysMunicipalityCode] =
+    useState("");
+
   /* =========================================================
      SYSTEM PREFERENCES
   ========================================================= */
 
-  const [preferences, setPreferences] =
-    useState<SystemPreferences>(defaultPreferences);
+const [preferences, setPreferences] =
+  useState<SystemPreferences>(() => {
+    return {
+      ...defaultPreferences,
+      theme: readSavedTheme() ?? "light",
+    };
+  });
 
-  const [loadingPreferences, setLoadingPreferences] =
-    useState(true);
+    const isDark = preferences.theme === "dark";
 
-  const [savingPreferences, setSavingPreferences] =
-    useState(false);
+const themeColors = {
+  page: isDark ? "#152235" : "#eef6ff",
+  surface: isDark ? "#1d2c40" : "#ffffff",
+  surfaceSoft: isDark ? "#223249" : "#f8fafc",
+  surfaceActive: isDark ? "#2b3d56" : "#eef4fb",
 
-  const [preferenceMessage, setPreferenceMessage] =
-    useState("");
+  border: isDark ? "#40516a" : "#dbe5ef",
+  borderSoft: isDark ? "#34465f" : "#e7edf4",
 
-  const [preferenceError, setPreferenceError] =
-    useState("");
+  text: isDark ? "#f1f5f9" : "#172033",
+  textSecondary: isDark ? "#c1ccda" : "#64748b",
+  textMuted: isDark ? "#91a1b5" : "#8993a5",
+};
 
   /* =========================================================
      PASSWORD
@@ -137,6 +285,34 @@ function Settings({
 
   const [passwordError, setPasswordError] =
     useState("");
+
+  const passwordRequirements =
+    getPasswordRequirements(newPassword);
+  const passwordScore = newPassword
+    ? passwordRequirements.filter((requirement) => requirement.met).length
+    : 0;
+  const passwordStrength = !newPassword
+    ? {
+        label: "Not rated",
+        color: themeColors.textMuted,
+      }
+    : passwordScore === passwordRequirements.length
+      ? {
+          label: "Strong",
+          color: isDark ? "#6ee7b7" : "#15803d",
+        }
+      : passwordScore >= 4
+        ? {
+            label: "Fair",
+            color: isDark ? "#fcd34d" : "#b45309",
+          }
+        : {
+            label: "Weak",
+            color: isDark ? "#fca5a5" : "#b91c1c",
+          };
+  const passwordsMatch =
+    confirmPassword.length > 0 &&
+    newPassword === confirmPassword;
 
   /* =========================================================
      LOAD BARANGAY SETTINGS
@@ -171,10 +347,20 @@ function Settings({
         setSettings({
           barangayName:
             data.barangay_name || "",
+          barangayCode:
+            data.barangay_code || "",
           municipality:
             data.municipality || "",
+          municipalityCode:
+            data.municipality_code || "",
           province:
             data.province || "",
+          provinceCode:
+            data.province_code || "",
+          regionName:
+            data.region_name || "",
+          regionCode:
+            data.region_code || "",
           captainName:
             data.captain_name || "",
           contactNumber:
@@ -191,147 +377,81 @@ function Settings({
   }, []);
 
   /* =========================================================
-     LOAD SYSTEM PREFERENCES
+     LOAD PSGC LOCATION OPTIONS
   ========================================================= */
 
   useEffect(() => {
-    const loadPreferences = async () => {
-      setLoadingPreferences(true);
-      setPreferenceError("");
-
-      const { data, error } = await supabase
-        .from("system_preferences")
-        .select("*")
-        .eq("id", 1)
-        .maybeSingle();
-
-      if (error) {
-        console.error(
-          "FAILED TO LOAD SYSTEM PREFERENCES:",
-          error
-        );
-
-        setPreferenceError(
-          "Unable to load system preferences."
-        );
-
-        setLoadingPreferences(false);
-        return;
-      }
-
-      if (data) {
-        const loadedPreferences: SystemPreferences = {
-          theme:
-            data.theme === "dark"
-              ? "dark"
-              : "light",
-
-          brightness:
-            Number(data.brightness) || 100,
-
-          fontFamily:
-            data.font_family || "Inter",
-
-          fontSize:
-            data.font_size === "small"
-              ? "small"
-              : data.font_size === "large"
-              ? "large"
-              : "medium",
-
-          language:
-            data.language === "tagalog"
-              ? "tagalog"
-              : "english",
-
-          confirmLogout:
-            data.confirm_logout !== false,
-
-          autoRefresh:
-            data.auto_refresh === true,
-        };
-
-        setPreferences(loadedPreferences);
-
-        applyPreferences(loadedPreferences);
-      }
-
-      setLoadingPreferences(false);
-    };
-
-    loadPreferences();
+    void loadPsgcOptions(
+      "https://psgc.gitlab.io/api/regions/",
+      "regions"
+    ).then(setRegions);
   }, []);
 
-  /* =========================================================
-     APPLY SYSTEM PREFERENCES
-  ========================================================= */
-
-  const applyPreferences = (
-    current: SystemPreferences
-  ) => {
-    const root = document.documentElement;
-    const body = document.body;
-
-    const fontSizes = {
-      small: "14px",
-      medium: "16px",
-      large: "18px",
-    };
-
-    const fontSize =
-      fontSizes[current.fontSize];
-
-    root.style.setProperty(
-      "--system-font-family",
-      current.fontFamily
-    );
-
-    root.style.setProperty(
-      "--system-font-size",
-      fontSize
-    );
-
-    body.style.fontFamily =
-      current.fontFamily;
-
-    body.style.fontSize =
-      fontSize;
-
-    body.style.filter =
-      `brightness(${current.brightness}%)`;
-
-    if (current.theme === "dark") {
-      root.style.setProperty(
-        "--system-background",
-        "#111827"
-      );
-
-      root.style.setProperty(
-        "--system-surface",
-        "#1f2937"
-      );
-
-      root.style.setProperty(
-        "--system-text",
-        "#f9fafb"
-      );
-    } else {
-      root.style.setProperty(
-        "--system-background",
-        "#f5f7fb"
-      );
-
-      root.style.setProperty(
-        "--system-surface",
-        "#ffffff"
-      );
-
-      root.style.setProperty(
-        "--system-text",
-        "#172033"
-      );
+  useEffect(() => {
+    if (!settings.regionCode) {
+      return;
     }
-  };
+
+    const regionCode = settings.regionCode;
+    let isCurrent = true;
+
+    void loadPsgcOptions(
+      `https://psgc.gitlab.io/api/regions/${settings.regionCode}/provinces/`,
+      `provinces:${settings.regionCode}`
+    ).then((options) => {
+      if (!isCurrent) return;
+      setProvinces(options);
+      setProvincesRegionCode(regionCode);
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [settings.regionCode]);
+
+  useEffect(() => {
+    if (!settings.provinceCode) {
+      return;
+    }
+
+    const provinceCode = settings.provinceCode;
+    let isCurrent = true;
+
+    void loadPsgcOptions(
+      `https://psgc.gitlab.io/api/provinces/${settings.provinceCode}/municipalities/`,
+      `municipalities:${settings.provinceCode}`
+    ).then((options) => {
+      if (!isCurrent) return;
+      setMunicipalities(options);
+      setMunicipalitiesProvinceCode(provinceCode);
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [settings.provinceCode]);
+
+  useEffect(() => {
+    if (!settings.municipalityCode) {
+      return;
+    }
+
+    const municipalityCode = settings.municipalityCode;
+    let isCurrent = true;
+
+    void loadPsgcOptions(
+      `https://psgc.gitlab.io/api/municipalities/${settings.municipalityCode}/barangays/`,
+      `barangays:${settings.municipalityCode}`
+    ).then((options) => {
+      if (!isCurrent) return;
+      setBarangays(options);
+      setBarangaysMunicipalityCode(municipalityCode);
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [settings.municipalityCode]);
 
   /* =========================================================
      BARANGAY FIELD CHANGE
@@ -350,6 +470,76 @@ function Settings({
     setSaveError("");
   };
 
+  const handleLocationChange = (
+    level:
+      | "region"
+      | "province"
+      | "municipality"
+      | "barangay",
+    code: string
+  ) => {
+    if (level === "region") {
+      const selected = regions.find(
+        (item) => item.code === code
+      );
+
+      setSettings((current) => ({
+        ...current,
+        regionCode: code,
+        regionName: selected?.name ?? "",
+        provinceCode: "",
+        province: "",
+        municipalityCode: "",
+        municipality: "",
+        barangayCode: "",
+        barangayName: "",
+      }));
+      return;
+    }
+
+    if (level === "province") {
+      const selected = provinces.find(
+        (item) => item.code === code
+      );
+
+      setSettings((current) => ({
+        ...current,
+        provinceCode: code,
+        province: selected?.name ?? "",
+        municipalityCode: "",
+        municipality: "",
+        barangayCode: "",
+        barangayName: "",
+      }));
+      return;
+    }
+
+    if (level === "municipality") {
+      const selected = municipalities.find(
+        (item) => item.code === code
+      );
+
+      setSettings((current) => ({
+        ...current,
+        municipalityCode: code,
+        municipality: selected?.name ?? "",
+        barangayCode: "",
+        barangayName: "",
+      }));
+      return;
+    }
+
+    const selected = barangays.find(
+      (item) => item.code === code
+    );
+
+    setSettings((current) => ({
+      ...current,
+      barangayCode: code,
+      barangayName: selected?.name ?? "",
+    }));
+  };
+
   /* =========================================================
      SAVE BARANGAY SETTINGS
   ========================================================= */
@@ -366,10 +556,20 @@ function Settings({
           id: 1,
           barangay_name:
             settings.barangayName.trim(),
+          barangay_code:
+            settings.barangayCode,
           municipality:
             settings.municipality.trim(),
+          municipality_code:
+            settings.municipalityCode,
           province:
             settings.province.trim(),
+          province_code:
+            settings.provinceCode,
+          region_name:
+            settings.regionName.trim(),
+          region_code:
+            settings.regionCode,
           captain_name:
             settings.captainName.trim(),
           contact_number:
@@ -398,6 +598,8 @@ function Settings({
       return;
     }
 
+    cacheBarangayProfile(settings);
+
     setSaveMessage(
       "Barangay information saved successfully."
     );
@@ -405,85 +607,18 @@ function Settings({
     setSavingSettings(false);
   };
 
-  /* =========================================================
-     PREFERENCE CHANGE
-  ========================================================= */
-
-  const handlePreferenceChange = (
-    field: keyof SystemPreferences,
-    value:
-      | string
-      | number
-      | boolean
-  ) => {
-    setPreferences((current) => {
-      const updated = {
-        ...current,
-        [field]: value,
-      } as SystemPreferences;
-
-      applyPreferences(updated);
-
-      return updated;
-    });
-
-    setPreferenceMessage("");
-    setPreferenceError("");
-  };
-
-  /* =========================================================
-     SAVE SYSTEM PREFERENCES
-  ========================================================= */
-
-  const handleSavePreferences = async () => {
-    setSavingPreferences(true);
-    setPreferenceMessage("");
-    setPreferenceError("");
-
-    const { error } = await supabase
-      .from("system_preferences")
-      .upsert(
-        {
-          id: 1,
-          theme: preferences.theme,
-          brightness: preferences.brightness,
-          font_family:
-            preferences.fontFamily,
-          font_size:
-            preferences.fontSize,
-          language:
-            preferences.language,
-          confirm_logout:
-            preferences.confirmLogout,
-          auto_refresh:
-            preferences.autoRefresh,
-          updated_at:
-            new Date().toISOString(),
-        },
-        {
-          onConflict: "id",
-        }
-      );
-
-    if (error) {
-      console.error(
-        "FAILED TO SAVE SYSTEM PREFERENCES:",
-        error
-      );
-
-      setPreferenceError(
-        "Unable to save system preferences."
-      );
-
-      setSavingPreferences(false);
-      return;
+  const handleThemeChange = (theme: AppTheme) => {
+    try {
+      localStorage.setItem("barangay-theme", theme);
+    } catch (error) {
+      console.error("FAILED TO SAVE THEME PREFERENCE:", error);
     }
 
-    setPreferenceMessage(
-      "System preferences saved successfully."
-    );
-
-    setSavingPreferences(false);
+    setPreferences((current) => ({
+      ...current,
+      theme,
+    }));
+    applyAppTheme(theme);
   };
 
   /* =========================================================
@@ -501,9 +636,13 @@ function Settings({
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (
+      passwordRequirements.some(
+        (requirement) => !requirement.met
+      )
+    ) {
       setPasswordError(
-        "Password must be at least 6 characters."
+        "Please meet all the password requirements shown above."
       );
       return;
     }
@@ -517,34 +656,44 @@ function Settings({
 
     setChangingPassword(true);
 
-    const { error } =
-      await supabase.auth.updateUser({
-        password: newPassword,
-      });
+    try {
+      const { error } =
+        await supabase.auth.updateUser({
+          password: newPassword,
+        });
 
-    if (error) {
+      if (error) {
+        console.error(
+          "FAILED TO CHANGE PASSWORD:",
+          error
+        );
+
+        setPasswordError(
+          error.message ||
+            "Unable to change password."
+        );
+        return;
+      }
+
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage(
+        "Password changed successfully."
+      );
+    } catch (error) {
       console.error(
         "FAILED TO CHANGE PASSWORD:",
         error
       );
 
       setPasswordError(
-        error.message ||
-          "Unable to change password."
+        error instanceof Error
+          ? error.message
+          : "Unable to change password."
       );
-
+    } finally {
       setChangingPassword(false);
-      return;
     }
-
-    setNewPassword("");
-    setConfirmPassword("");
-
-    setPasswordMessage(
-      "Password changed successfully."
-    );
-
-    setChangingPassword(false);
   };
 
   /* =========================================================
@@ -570,15 +719,18 @@ function Settings({
   ========================================================= */
 
   const inputStyle = {
-    width: "100%",
-    boxSizing: "border-box" as const,
-    border: "1px solid #dfe4eb",
-    borderRadius: "9px",
-    padding: "11px 12px",
-    fontSize: "14px",
-    outline: "none",
-    background: "white",
-  };
+  width: "100%",
+  boxSizing: "border-box" as const,
+  border: `1px solid ${themeColors.border}`,
+  borderRadius: "9px",
+  padding: "11px 12px",
+  fontSize: "14px",
+  outline: "none",
+  background: themeColors.surfaceSoft,
+  color: themeColors.text,
+  transition:
+    "background 0.25s ease, color 0.25s ease, border-color 0.25s ease",
+};
 
   /* =========================================================
      RETURN
@@ -586,22 +738,17 @@ function Settings({
 
   return (
     <main
-      style={{
-        flex: 1,
-        padding: "34px 42px",
-        background:
-          preferences.theme === "dark"
-            ? "#111827"
-            : "#f5f7fb",
-        minHeight: "100vh",
-        color:
-          preferences.theme === "dark"
-            ? "#f9fafb"
-            : "#172033",
-        transition:
-          "background 0.25s ease, color 0.25s ease",
-      }}
-    >
+  className="settings-page-main"
+  style={{
+    flex: 1,
+    padding: "34px 42px",
+    background: themeColors.page,
+    minHeight: "100vh",
+    color: themeColors.text,
+    transition:
+      "background 0.25s ease, color 0.25s ease",
+  }}
+>
       {/* HEADER */}
 
       <div
@@ -677,6 +824,144 @@ function Settings({
           Back to Dashboard
         </button>
       </div>
+
+    {/* SETTINGS NAVIGATION */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "22px",
+  }}
+>
+<nav
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    padding: "4px",
+    marginBottom: "0",
+background:
+  preferences.theme === "dark"
+    ? "#1f2937"
+    : "#ffffff",
+border:
+  preferences.theme === "dark"
+    ? "1px solid #334155"
+    : "1px solid #dfe5ec",
+  }}
+>
+  {[
+    {
+      id: "barangay",
+      label: "Barangay Profile",
+      icon: <Building2 size={16} />,
+    },
+    {
+      id: "account",
+      label: "Account & Security",
+      icon: <UserRound size={16} />,
+    },
+    {
+      id: "system",
+      label: "System",
+      icon: <Settings2 size={16} />,
+    },
+  ].map((item) => {
+    const selected = activeTab === item.id;
+
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() =>
+          setActiveTab(item.id as SettingsTab)
+        }
+        style={{
+          height: "40px",
+          padding: "0 16px",
+          border: "none",
+          borderRadius: "7px",
+          background: selected
+            ? preferences.theme === "dark"
+              ? "#263449"
+              : "#eef3f8"
+            : "transparent",
+          color: selected
+            ? preferences.theme === "dark"
+              ? "#ffffff"
+              : "#172033"
+            : "var(--system-text-secondary)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "7px",
+          cursor: "pointer",
+          fontSize: "13px",
+          fontWeight: selected ? 700 : 600,
+          whiteSpace: "nowrap",
+          transition: "all 0.15s ease",
+        }}
+      >
+        {item.icon}
+        <span>{item.label}</span>
+      </button>
+    );
+  })}
+
+  </nav>
+
+  <button
+    type="button"
+onClick={() => {
+  const nextTheme =
+    preferences.theme === "light" ? "dark" : "light";
+
+  handleThemeChange(nextTheme);
+}}
+    title={
+      preferences.theme === "light"
+        ? "Switch to Dark Mode"
+        : "Switch to Light Mode"
+    }
+    aria-label={
+      preferences.theme === "light"
+        ? "Switch to Dark Mode"
+        : "Switch to Light Mode"
+    }
+   style={{
+  width: "42px",
+  height: "42px",
+  flexShrink: 0,
+  border:
+    preferences.theme === "dark"
+      ? "1px solid #334155"
+      : "1px solid #dfe5ec",
+  borderRadius: "10px",
+  background:
+    preferences.theme === "dark"
+      ? "#1f2937"
+      : "#ffffff",
+  color:
+    preferences.theme === "dark"
+      ? "#f8fafc"
+      : "#475569",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+}}
+  >
+    {preferences.theme === "light" ? (
+      <Moon size={17} />
+    ) : (
+      <Sun size={17} />
+    )}
+    </button>
+</div>
+
+{activeTab === "account" && (
+  <>
 
       {/* ACCOUNT */}
 
@@ -775,6 +1060,473 @@ function Settings({
         </div>
       </section>
 
+
+ {/* CHANGE PASSWORD */}
+
+      <section
+        style={{
+          background:
+            preferences.theme === "dark"
+              ? "#1f2937"
+              : "white",
+          border: "1px solid #e7eaf0",
+          borderRadius: "14px",
+          padding: "24px",
+          marginBottom: "18px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "20px",
+          }}
+        >
+          <LockKeyhole size={20} />
+
+          <div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "18px",
+              }}
+            >
+              Change Password
+            </h2>
+
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#758094",
+                fontSize: "13px",
+              }}
+            >
+              Update the password of the current account.
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "16px",
+          }}
+        >
+          <div>
+            <label
+              htmlFor="settings-new-password"
+              style={{
+                display: "block",
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#667085",
+                marginBottom: "7px",
+              }}
+            >
+              NEW PASSWORD
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <input
+                id="settings-new-password"
+                type={
+                  showNewPassword
+                    ? "text"
+                    : "password"
+                }
+                autoComplete="new-password"
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_BYTES}
+                aria-describedby="settings-password-guidance"
+                aria-invalid={Boolean(passwordError)}
+                value={newPassword}
+                onChange={(event) => {
+                  setNewPassword(event.target.value);
+                  setPasswordError("");
+                  setPasswordMessage("");
+                }}
+                placeholder="Enter new password"
+                style={{
+                  ...inputStyle,
+                  paddingRight: "42px",
+                }}
+              />
+
+              <button
+                type="button"
+                aria-label={
+                  showNewPassword
+                    ? "Hide new password"
+                    : "Show new password"
+                }
+                onClick={() =>
+                  setShowNewPassword(
+                    !showNewPassword
+                  )
+                }
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform:
+                    "translateY(-50%)",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "#758094",
+                }}
+              >
+                {showNewPassword ? (
+                  <EyeOff size={17} />
+                ) : (
+                  <Eye size={17} />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="settings-confirm-password"
+              style={{
+                display: "block",
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#667085",
+                marginBottom: "7px",
+              }}
+            >
+              CONFIRM PASSWORD
+            </label>
+
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <input
+                id="settings-confirm-password"
+                type={
+                  showConfirmPassword
+                    ? "text"
+                    : "password"
+                }
+                autoComplete="new-password"
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_BYTES}
+                aria-describedby="settings-password-guidance settings-password-match"
+                aria-invalid={Boolean(
+                  passwordError ||
+                    (confirmPassword && !passwordsMatch)
+                )}
+                value={confirmPassword}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value);
+                  setPasswordError("");
+                  setPasswordMessage("");
+                }}
+                placeholder="Confirm new password"
+                style={{
+                  ...inputStyle,
+                  paddingRight: "42px",
+                }}
+              />
+
+              <button
+                type="button"
+                aria-label={
+                  showConfirmPassword
+                    ? "Hide confirmation password"
+                    : "Show confirmation password"
+                }
+                onClick={() =>
+                  setShowConfirmPassword(
+                    !showConfirmPassword
+                  )
+                }
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform:
+                    "translateY(-50%)",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "#758094",
+                }}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff size={17} />
+                ) : (
+                  <Eye size={17} />
+                )}
+              </button>
+            </div>
+
+            <p
+              id="settings-password-match"
+              className={`settings-password-match ${
+                !confirmPassword
+                  ? "is-empty"
+                  : passwordsMatch
+                    ? "is-valid"
+                    : "is-invalid"
+              }`}
+              role="status"
+              style={{
+                minHeight: "16px",
+                margin: "6px 0 0",
+                fontSize: "12px",
+              }}
+            >
+              {!confirmPassword
+                ? " "
+                : passwordsMatch
+                  ? "Passwords match."
+                  : "Passwords do not match."}
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="settings-password-guidance"
+          style={{
+            marginTop: "16px",
+            padding: "14px 15px",
+            border: `1px solid ${themeColors.borderSoft}`,
+            borderRadius: "10px",
+            background: themeColors.surfaceSoft,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              marginBottom: "8px",
+            }}
+          >
+            <strong style={{ fontSize: "12px" }}>
+              Password strength
+            </strong>
+            <span
+              className={`settings-password-strength-label settings-password-strength-${passwordStrength.label.toLowerCase().replace(" ", "-")}`}
+              aria-live="polite"
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+              }}
+            >
+              {passwordStrength.label}
+            </span>
+          </div>
+
+          <div
+            role="progressbar"
+            aria-label="Password strength"
+            aria-valuemin={0}
+            aria-valuemax={passwordRequirements.length}
+            aria-valuenow={passwordScore}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${passwordRequirements.length}, minmax(0, 1fr))`,
+              gap: "5px",
+              marginBottom: "12px",
+            }}
+          >
+            {passwordRequirements.map((_, index) => (
+              <span
+                key={`password-meter-${index}`}
+                style={{
+                  height: "5px",
+                  borderRadius: "999px",
+                  background:
+                    newPassword && index < passwordScore
+                      ? passwordStrength.color
+                      : themeColors.borderSoft,
+                  transition: "background 0.18s ease",
+                }}
+              />
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(185px, 1fr))",
+              gap: "7px 16px",
+            }}
+          >
+            {passwordRequirements.map((requirement) => {
+              const met = Boolean(newPassword) && requirement.met;
+
+              return (
+                <span
+                  className={`settings-password-rule ${met ? "is-met" : ""}`}
+                  key={requirement.label}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    fontSize: "11px",
+                  }}
+                >
+                  {met ? (
+                    <CheckCircle2 size={14} />
+                  ) : (
+                    <Circle size={14} />
+                  )}
+                  {requirement.label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "16px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "15px",
+          }}
+        >
+          <div>
+            {passwordMessage && (
+              <span
+                style={{
+                  color: "#168a5b",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <CheckCircle2 size={15} />
+                {passwordMessage}
+              </span>
+            )}
+
+            {passwordError && (
+              <span
+                style={{
+                  color: "#b42318",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <AlertCircle size={15} />
+                {passwordError}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="settings-primary-button"
+            onClick={handleChangePassword}
+            disabled={changingPassword}
+            style={{
+              opacity: changingPassword ? 0.72 : 1,
+            }}
+          >
+            <LockKeyhole size={16} />
+
+            {changingPassword
+              ? "Updating..."
+              : "Update Password"}
+          </button>
+        </div>
+      </section>
+
+ {/* SECURITY */}
+
+      <section
+        style={{
+          background:
+            preferences.theme === "dark"
+              ? "#1f2937"
+              : "white",
+          border: "1px solid #f0dede",
+          borderRadius: "14px",
+          padding: "24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "16px",
+          }}
+        >
+          <ShieldCheck size={20} />
+
+          <div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "18px",
+              }}
+            >
+              Security
+            </h2>
+
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#758094",
+                fontSize: "13px",
+              }}
+            >
+              End your current system session.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleLogoutClick}
+          style={{
+            border: "1px solid #e3bcbc",
+            background: "#fff7f7",
+            color: "#b42318",
+            borderRadius: "9px",
+            padding: "11px 17px",
+            cursor: "pointer",
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <LogOut size={16} />
+
+          Log Out
+        </button>
+      </section>
+
+      </>
+)}
+
+      {activeTab === "barangay" && (
+  <>
+
       {/* BARANGAY INFORMATION */}
 
       <section
@@ -858,22 +1610,114 @@ function Settings({
                 gap: "16px",
               }}
             >
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: "16px",
+                }}
+              >
+                {[
+                  [
+                    "REGION",
+                    settings.regionCode,
+                    regions,
+                    "region",
+                    "Select region",
+                  ],
+                  [
+                    "PROVINCE",
+                    settings.provinceCode,
+                    settings.regionCode === provincesRegionCode
+                      ? provinces
+                      : [],
+                    "province",
+                    "Select province",
+                  ],
+                  [
+                    "MUNICIPALITY / CITY",
+                    settings.municipalityCode,
+                    settings.provinceCode === municipalitiesProvinceCode
+                      ? municipalities
+                      : [],
+                    "municipality",
+                    "Select municipality or city",
+                  ],
+                  [
+                    "BARANGAY",
+                    settings.barangayCode,
+                    settings.municipalityCode === barangaysMunicipalityCode
+                      ? barangays
+                      : [],
+                    "barangay",
+                    "Select barangay",
+                  ],
+                ].map(
+                  ([
+                    label,
+                    value,
+                    options,
+                    level,
+                    placeholder,
+                  ]) => (
+                    <div key={String(level)}>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: "#667085",
+                          marginBottom: "7px",
+                        }}
+                      >
+                        {String(label)}
+                      </label>
+
+                      <select
+                        value={String(value)}
+                        onChange={(event) =>
+                          handleLocationChange(
+                            level as
+                              | "region"
+                              | "province"
+                              | "municipality"
+                              | "barangay",
+                            event.target.value
+                          )
+                        }
+                        disabled={
+                          level === "province"
+                            ? !settings.regionCode
+                            : level === "municipality"
+                              ? !settings.provinceCode
+                              : level === "barangay"
+                                ? !settings.municipalityCode
+                                : false
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="">
+                          {String(placeholder)}
+                        </option>
+                        {(options as PsgcOption[]).map(
+                          (option) => (
+                            <option
+                              key={option.code}
+                              value={option.code}
+                            >
+                              {option.name}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+                  )
+                )}
+              </div>
+
               {[
-                [
-                  "BARANGAY NAME",
-                  "barangayName",
-                  "Enter barangay name",
-                ],
-                [
-                  "MUNICIPALITY / CITY",
-                  "municipality",
-                  "Enter municipality or city",
-                ],
-                [
-                  "PROVINCE",
-                  "province",
-                  "Enter province",
-                ],
                 [
                   "BARANGAY CAPTAIN",
                   "captainName",
@@ -997,23 +1841,11 @@ function Settings({
 
               <button
                 type="button"
+                className="settings-primary-button"
                 onClick={handleSaveSettings}
                 disabled={savingSettings}
                 style={{
-                  border: "none",
-                  background: savingSettings
-                    ? "#9aa4b2"
-                    : "#176b57",
-                  color: "white",
-                  borderRadius: "9px",
-                  padding: "11px 18px",
-                  cursor: savingSettings
-                    ? "not-allowed"
-                    : "pointer",
-                  fontWeight: 700,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
+                  opacity: savingSettings ? 0.72 : 1,
                 }}
               >
                 <Save size={16} />
@@ -1026,668 +1858,11 @@ function Settings({
           </>
         )}
       </section>
+      </>
+      )}
 
-      {/* =====================================================
-          SYSTEM PREFERENCES
-      ===================================================== */}
-
-      <section
-        style={{
-          background:
-            preferences.theme === "dark"
-              ? "#1f2937"
-              : "white",
-          border: "1px solid #e7eaf0",
-          borderRadius: "14px",
-          padding: "24px",
-          marginBottom: "18px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "20px",
-          }}
-        >
-          <div
-            style={{
-              width: "42px",
-              height: "42px",
-              borderRadius: "10px",
-              background: "#f5efff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#7048a8",
-            }}
-          >
-            <SlidersHorizontal size={20} />
-          </div>
-
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "18px",
-                color:
-                  preferences.theme === "dark"
-                    ? "#f9fafb"
-                    : "#172033",
-              }}
-            >
-              System Preferences
-            </h2>
-
-            <p
-              style={{
-                margin: "4px 0 0",
-                color: "#758094",
-                fontSize: "13px",
-              }}
-            >
-              Customize the appearance and behavior of the system.
-            </p>
-          </div>
-        </div>
-
-        {loadingPreferences ? (
-          <div
-            style={{
-              padding: "30px",
-              textAlign: "center",
-              color: "#758094",
-            }}
-          >
-            Loading system preferences...
-          </div>
-        ) : (
-          <>
-            {/* THEME */}
-
-            <div
-              style={{
-                padding: "17px",
-                border: "1px solid #edf0f4",
-                borderRadius: "10px",
-                marginBottom: "12px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  marginBottom: "12px",
-                }}
-              >
-                {preferences.theme === "dark" ? (
-                  <Moon size={18} />
-                ) : (
-                  <Sun size={18} />
-                )}
-
-                <div>
-                  <strong
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                    }}
-                  >
-                    Theme
-                  </strong>
-
-                  <span
-                    style={{
-                      color: "#758094",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Choose the system appearance.
-                  </span>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    handlePreferenceChange(
-                      "theme",
-                      "light"
-                    )
-                  }
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: "9px",
-                    border:
-                      preferences.theme === "light"
-                        ? "2px solid #176b57"
-                        : "1px solid #dfe4eb",
-                    background:
-                      preferences.theme === "light"
-                        ? "#eef8f4"
-                        : "white",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  <Sun size={15} />
-                  {" "}Light
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handlePreferenceChange(
-                      "theme",
-                      "dark"
-                    )
-                  }
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: "9px",
-                    border:
-                      preferences.theme === "dark"
-                        ? "2px solid #176b57"
-                        : "1px solid #dfe4eb",
-                    background:
-                      preferences.theme === "dark"
-                        ? "#eef8f4"
-                        : "white",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  <Moon size={15} />
-                  {" "}Dark
-                </button>
-              </div>
-            </div>
-
-            {/* FONT */}
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: "12px",
-                marginBottom: "12px",
-              }}
-            >
-              <div
-                style={{
-                  padding: "17px",
-                  border: "1px solid #edf0f4",
-                  borderRadius: "10px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "10px",
-                  }}
-                >
-                  <Type size={18} />
-
-                  <strong
-                    style={{
-                      fontSize: "14px",
-                    }}
-                  >
-                    Font Family
-                  </strong>
-                </div>
-
-                <select
-                  value={preferences.fontFamily}
-                  onChange={(event) =>
-                    handlePreferenceChange(
-                      "fontFamily",
-                      event.target.value
-                    )
-                  }
-                  style={inputStyle}
-                >
-                  <option value="Inter">
-                    Inter
-                  </option>
-
-                  <option value="Arial">
-                    Arial
-                  </option>
-
-                  <option value="Verdana">
-                    Verdana
-                  </option>
-
-                  <option value="Georgia">
-                    Georgia
-                  </option>
-
-                  <option value="Tahoma">
-                    Tahoma
-                  </option>
-
-                  <option value="Trebuchet MS">
-                    Trebuchet MS
-                  </option>
-                </select>
-              </div>
-
-              {/* FONT SIZE */}
-
-              <div
-                style={{
-                  padding: "17px",
-                  border: "1px solid #edf0f4",
-                  borderRadius: "10px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "10px",
-                  }}
-                >
-                  <Type size={18} />
-
-                  <strong
-                    style={{
-                      fontSize: "14px",
-                    }}
-                  >
-                    Font Size
-                  </strong>
-                </div>
-
-                <select
-                  value={preferences.fontSize}
-                  onChange={(event) =>
-                    handlePreferenceChange(
-                      "fontSize",
-                      event.target.value
-                    )
-                  }
-                  style={inputStyle}
-                >
-                  <option value="small">
-                    Small
-                  </option>
-
-                  <option value="medium">
-                    Medium
-                  </option>
-
-                  <option value="large">
-                    Large
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            {/* BRIGHTNESS */}
-
-            <div
-              style={{
-                padding: "17px",
-                border: "1px solid #edf0f4",
-                borderRadius: "10px",
-                marginBottom: "12px",
-              }}
-            >
-              <strong
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  marginBottom: "5px",
-                }}
-              >
-                Brightness
-              </strong>
-
-              <span
-                style={{
-                  display: "block",
-                  color: "#758094",
-                  fontSize: "12px",
-                  marginBottom: "12px",
-                }}
-              >
-                Adjust the visual brightness of the system.
-              </span>
-
-              <input
-                type="range"
-                min="80"
-                max="110"
-                step="5"
-                value={preferences.brightness}
-                onChange={(event) =>
-                  handlePreferenceChange(
-                    "brightness",
-                    Number(event.target.value)
-                  )
-                }
-                style={{
-                  width: "100%",
-                }}
-              />
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: "6px",
-                  color: "#758094",
-                  fontSize: "12px",
-                }}
-              >
-                <span>80%</span>
-
-                <strong>
-                  {preferences.brightness}%
-                </strong>
-
-                <span>110%</span>
-              </div>
-            </div>
-
-            {/* LANGUAGE */}
-
-            <div
-              style={{
-                padding: "17px",
-                border: "1px solid #edf0f4",
-                borderRadius: "10px",
-                marginBottom: "12px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginBottom: "10px",
-                }}
-              >
-                <Languages size={18} />
-
-                <strong
-                  style={{
-                    fontSize: "14px",
-                  }}
-                >
-                  Language
-                </strong>
-              </div>
-
-              <select
-                value={preferences.language}
-                onChange={(event) =>
-                  handlePreferenceChange(
-                    "language",
-                    event.target.value
-                  )
-                }
-                style={inputStyle}
-              >
-                <option value="english">
-                  English
-                </option>
-
-                <option value="tagalog">
-                  Tagalog
-                </option>
-              </select>
-
-              <p
-                style={{
-                  margin: "8px 0 0",
-                  color: "#758094",
-                  fontSize: "12px",
-                }}
-              >
-                Language preference is saved to Supabase and can be used by the system interface.
-              </p>
-            </div>
-
-            {/* CONFIRM LOGOUT */}
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "20px",
-                padding: "16px",
-                border: "1px solid #edf0f4",
-                borderRadius: "10px",
-                marginBottom: "12px",
-              }}
-            >
-              <div>
-                <strong
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    marginBottom: "4px",
-                  }}
-                >
-                  Confirm before logging out
-                </strong>
-
-                <span
-                  style={{
-                    color: "#758094",
-                    fontSize: "13px",
-                  }}
-                >
-                  Ask for confirmation before ending the current session.
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handlePreferenceChange(
-                    "confirmLogout",
-                    !preferences.confirmLogout
-                  )
-                }
-                style={{
-                  width: "48px",
-                  height: "26px",
-                  borderRadius: "20px",
-                  border: "none",
-                  background:
-                    preferences.confirmLogout
-                      ? "#176b57"
-                      : "#cbd2dc",
-                  padding: "3px",
-                  cursor: "pointer",
-                  display: "flex",
-                  justifyContent:
-                    preferences.confirmLogout
-                      ? "flex-end"
-                      : "flex-start",
-                  alignItems: "center",
-                }}
-              >
-                <span
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    background: "white",
-                  }}
-                />
-              </button>
-            </div>
-
-            {/* AUTO REFRESH */}
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "20px",
-                padding: "16px",
-                border: "1px solid #edf0f4",
-                borderRadius: "10px",
-              }}
-            >
-              <div>
-                <strong
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    marginBottom: "4px",
-                  }}
-                >
-                  Refresh census data when enabled
-                </strong>
-
-                <span
-                  style={{
-                    color: "#758094",
-                    fontSize: "13px",
-                  }}
-                >
-                  Reload the latest census records when this preference is turned on.
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handlePreferenceChange(
-                    "autoRefresh",
-                    !preferences.autoRefresh
-                  )
-                }
-                style={{
-                  width: "48px",
-                  height: "26px",
-                  borderRadius: "20px",
-                  border: "none",
-                  background:
-                    preferences.autoRefresh
-                      ? "#176b57"
-                      : "#cbd2dc",
-                  padding: "3px",
-                  cursor: "pointer",
-                  display: "flex",
-                  justifyContent:
-                    preferences.autoRefresh
-                      ? "flex-end"
-                      : "flex-start",
-                  alignItems: "center",
-                }}
-              >
-                <span
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    background: "white",
-                  }}
-                />
-              </button>
-            </div>
-
-            {/* SAVE PREFERENCES */}
-
-            <div
-              style={{
-                marginTop: "18px",
-                paddingTop: "18px",
-                borderTop: "1px solid #eef0f4",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "15px",
-              }}
-            >
-              <div>
-                {preferenceMessage && (
-                  <span
-                    style={{
-                      color: "#168a5b",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <CheckCircle2 size={15} />
-                    {preferenceMessage}
-                  </span>
-                )}
-
-                {preferenceError && (
-                  <span
-                    style={{
-                      color: "#b42318",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <AlertCircle size={15} />
-                    {preferenceError}
-                  </span>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSavePreferences}
-                disabled={savingPreferences}
-                style={{
-                  border: "none",
-                  background:
-                    savingPreferences
-                      ? "#9aa4b2"
-                      : "#176b57",
-                  color: "white",
-                  borderRadius: "9px",
-                  padding: "11px 18px",
-                  cursor: savingPreferences
-                    ? "not-allowed"
-                    : "pointer",
-                  fontWeight: 700,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <Save size={16} />
-
-                {savingPreferences
-                  ? "Saving..."
-                  : "Save Preferences"}
-              </button>
-            </div>
-          </>
-        )}
-      </section>
+      {activeTab === "system" && (
+  <>
 
       {/* CENSUS DATA */}
 
@@ -1759,264 +1934,7 @@ function Settings({
         </button>
       </section>
 
-      {/* CHANGE PASSWORD */}
 
-      <section
-        style={{
-          background:
-            preferences.theme === "dark"
-              ? "#1f2937"
-              : "white",
-          border: "1px solid #e7eaf0",
-          borderRadius: "14px",
-          padding: "24px",
-          marginBottom: "18px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "20px",
-          }}
-        >
-          <LockKeyhole size={20} />
-
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "18px",
-              }}
-            >
-              Change Password
-            </h2>
-
-            <p
-              style={{
-                margin: "4px 0 0",
-                color: "#758094",
-                fontSize: "13px",
-              }}
-            >
-              Update the password of the current account.
-            </p>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#667085",
-                marginBottom: "7px",
-              }}
-            >
-              NEW PASSWORD
-            </label>
-
-            <div
-              style={{
-                position: "relative",
-              }}
-            >
-              <input
-                type={
-                  showNewPassword
-                    ? "text"
-                    : "password"
-                }
-                value={newPassword}
-                onChange={(event) =>
-                  setNewPassword(
-                    event.target.value
-                  )
-                }
-                placeholder="Enter new password"
-                style={{
-                  ...inputStyle,
-                  paddingRight: "42px",
-                }}
-              />
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowNewPassword(
-                    !showNewPassword
-                  )
-                }
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform:
-                    "translateY(-50%)",
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  color: "#758094",
-                }}
-              >
-                {showNewPassword ? (
-                  <EyeOff size={17} />
-                ) : (
-                  <Eye size={17} />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#667085",
-                marginBottom: "7px",
-              }}
-            >
-              CONFIRM PASSWORD
-            </label>
-
-            <div
-              style={{
-                position: "relative",
-              }}
-            >
-              <input
-                type={
-                  showConfirmPassword
-                    ? "text"
-                    : "password"
-                }
-                value={confirmPassword}
-                onChange={(event) =>
-                  setConfirmPassword(
-                    event.target.value
-                  )
-                }
-                placeholder="Confirm new password"
-                style={{
-                  ...inputStyle,
-                  paddingRight: "42px",
-                }}
-              />
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowConfirmPassword(
-                    !showConfirmPassword
-                  )
-                }
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform:
-                    "translateY(-50%)",
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  color: "#758094",
-                }}
-              >
-                {showConfirmPassword ? (
-                  <EyeOff size={17} />
-                ) : (
-                  <Eye size={17} />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: "16px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "15px",
-          }}
-        >
-          <div>
-            {passwordMessage && (
-              <span
-                style={{
-                  color: "#168a5b",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <CheckCircle2 size={15} />
-                {passwordMessage}
-              </span>
-            )}
-
-            {passwordError && (
-              <span
-                style={{
-                  color: "#b42318",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <AlertCircle size={15} />
-                {passwordError}
-              </span>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleChangePassword}
-            disabled={changingPassword}
-            style={{
-              border: "none",
-              background:
-                changingPassword
-                  ? "#9aa4b2"
-                  : "#176b57",
-              color: "white",
-              borderRadius: "9px",
-              padding: "11px 18px",
-              cursor: changingPassword
-                ? "not-allowed"
-                : "pointer",
-              fontWeight: 700,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <LockKeyhole size={16} />
-
-            {changingPassword
-              ? "Updating..."
-              : "Update Password"}
-          </button>
-        </div>
-      </section>
 
       {/* SYSTEM INFORMATION */}
 
@@ -2131,72 +2049,9 @@ function Settings({
         </div>
       </section>
 
-      {/* SECURITY */}
+      </>
+      )}
 
-      <section
-        style={{
-          background:
-            preferences.theme === "dark"
-              ? "#1f2937"
-              : "white",
-          border: "1px solid #f0dede",
-          borderRadius: "14px",
-          padding: "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "16px",
-          }}
-        >
-          <ShieldCheck size={20} />
-
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "18px",
-              }}
-            >
-              Security
-            </h2>
-
-            <p
-              style={{
-                margin: "4px 0 0",
-                color: "#758094",
-                fontSize: "13px",
-              }}
-            >
-              End your current system session.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleLogoutClick}
-          style={{
-            border: "1px solid #e3bcbc",
-            background: "#fff7f7",
-            color: "#b42318",
-            borderRadius: "9px",
-            padding: "11px 17px",
-            cursor: "pointer",
-            fontWeight: 700,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <LogOut size={16} />
-
-          Log Out
-        </button>
-      </section>
     </main>
   );
 }

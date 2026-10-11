@@ -1,0 +1,279 @@
+@page {
+  size: A4 portrait;
+  margin: 12mm 10mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111827;
+  font-size: 11px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-actions {
+  width: min(190mm, calc(100% - 24px));
+  margin: 14px auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.print-actions button {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.print-actions .primary {
+  background: #173f73;
+  color: #ffffff;
+  border-color: #173f73;
+}
+
+.sheet {
+  width: 190mm;
+  max-width: calc(100% - 24px);
+  margin: 0 auto;
+  background: #ffffff;
+}
+
+.header {
+  position: relative;
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.28;
+  margin-bottom: 8px;
+  padding: 0 95px;
+}
+
+.header-logo {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.header-text {
+  text-align: center;
+}
+
+.header .republic {
+  font-size: 9.5px;
+}
+
+.header .barangay {
+  margin-top: 3px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.header .office {
+  margin-top: 2px;
+  font-size: 9.5px;
+}
+
+.rule {
+  border-top: 2px solid #1f2937;
+  margin: 7px 0 12px;
+}
+
+h1 {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 18px;
+  margin-bottom: 12px;
+  font-size: 10px;
+}
+
+.detail-row {
+  min-height: 16px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1px solid #374151;
+}
+
+th,
+td {
+  border: 1px solid #4b5563;
+  padding: 5px 6px;
+  vertical-align: middle;
+  overflow-wrap: break-word;
+}
+
+th {
+  background: #eef2f7;
+  text-transform: uppercase;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+th:first-child,
+td:first-child {
+  width: 8mm !important;
+  padding-left: 2px;
+  padding-right: 2px;
+  text-align: center;
+}
+
+.masterlist th:nth-child(2),
+.masterlist td:nth-child(2) {
+  width: 72mm;
+}
+
+.masterlist th:nth-child(3),
+.masterlist td:nth-child(3) {
+  width: 22mm;
+}
+
+.masterlist th:nth-child(4),
+.masterlist td:nth-child(4) {
+  width: 16mm;
+  text-align: center;
+}
+
+.masterlist th:nth-child(5),
+.masterlist td:nth-child(5) {
+  width: 31mm;
+}
+
+.masterlist th:nth-child(6),
+.masterlist td:nth-child(6) {
+  width: 27mm;
+}
+
+.attendance th:nth-child(2),
+.attendance td:nth-child(2) {
+  width: 80mm;
+}
+
+.attendance th:nth-child(3),
+.attendance td:nth-child(3) {
+  width: 30mm;
+}
+
+.assistance th:nth-child(2),
+.assistance td:nth-child(2) {
+  width: 67mm;
+}
+
+.assistance th:nth-child(3),
+.assistance td:nth-child(3) {
+  width: 25mm;
+}
+
+.assistance th:nth-child(4),
+.assistance td:nth-child(4) {
+  width: 36mm;
+}
+
+td.number {
+  text-align: center;
+}
+
+td.name {
+  font-weight: 700;
+}
+
+td.signature {
+  height: 27px;
+}
+
+.footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.total {
+  font-weight: 700;
+}
+
+.prepared {
+  min-width: 220px;
+  margin-top: 32px;
+  text-align: center;
+}
+
+.prepared-line {
+  border-top: 1px solid #111827;
+  padding-top: 4px;
+  font-weight: 700;
+}
+
+.prepared-role {
+  margin-top: 2px;
+  color: #4b5563;
+  font-size: 9px;
+}
+
+@media print {
+  .print-actions {
+    display: none !important;
+  }
+
+  .sheet {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr,
+  td,
+  th {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
