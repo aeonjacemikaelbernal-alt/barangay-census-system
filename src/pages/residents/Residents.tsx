@@ -10,7 +10,7 @@ import type {
 import { formatResidentRecordName, compareResidentNames } from "../../utils/nameFormatter";
 import ResidentsDemographics from "./ResidentsDemographics";
 import barangayLogo from "../../assets/barangay-pambuhan-logo.png";
-import residentPrintCssUrl from "./residentPrint.css?url";
+import residentPrintCssUrl from "./ResidentPrint.css?url";
 
 
 type ResidentRow = {
